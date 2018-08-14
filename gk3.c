@@ -990,9 +990,10 @@ bsp_data* bsp_handler(char* content)
         if (data->indice_count + 1 > capacity)
           data->indices = realloc(data->indices, sizeof(struct bsp_data_triangle) * (capacity += 512));
 
-        data->indices[data->indice_count].a = indices[triangles[j].a];
+        // Vertice order is inverted in GK3
+        data->indices[data->indice_count].a = indices[triangles[j].c];
         data->indices[data->indice_count].b = indices[triangles[j].b];
-        data->indices[data->indice_count].c = indices[triangles[j].c];
+        data->indices[data->indice_count].c = indices[triangles[j].a];
         data->indices[data->indice_count].surface_index = i;
 
         // Calculate Normals
