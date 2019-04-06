@@ -952,8 +952,12 @@ bsp_data* bsp_handler(char* content)
 
   for (unsigned int i = 0; i < h.surface_count; i++)
   {
+    char texture_name[64];
+    sprintf(texture_name, "%s.BMP", surfaces[i].texture_name);
+    for(int j = 0; (texture_name[j] = (char)toupper(texture_name[j])); j++);
+
     data->surfaces[i].model_index = surfaces[i].model_index;
-    strncpy(data->surfaces[i].texture_name, surfaces[i].texture_name, 32);
+    strncpy(data->surfaces[i].texture_name, texture_name, 32);
   }
 
   // Reverse Z order
@@ -1082,7 +1086,9 @@ mod_data* mod_handler(char* content)
         return NULL;
       }
 
-      strncpy(data->meshes[i].sections[j].texture_file, sh.texture_file, 32);
+      char texture_file[64];
+      sprintf(texture_file, "%s.BMP", sh.texture_file);
+      strncpy(data->meshes[i].sections[j].texture_file, texture_file, 32);
       data->meshes[i].sections[j].triangle_count = sh.triangle_count;
 
       // Read Vertice and Triangle Data
@@ -1553,11 +1559,18 @@ void* ini_handler(char* content)
 
 // Writers
 
-void bmp_write(bmp_data* data, char* filename)
+void bmp_write(bmp_data* data, char* filename, char* prefix)
 {
   if (data == NULL) return;
 
-  FILE* f = fopen(filename, "w");
+  char filename2[256];
+  if (prefix[0]) {
+    sprintf(filename2, "%s/%s", prefix, filename);
+  } else {
+    sprintf(filename2, "%s", filename);
+  }
+
+  FILE* f = fopen(filename2, "w");
 
   // Write Header
 
@@ -1634,7 +1647,7 @@ void bsp_write(bsp_data* data, char* filename, char* matname)
 
       fprintf(f, "usemtl group_%s_%i\n", data->models[i].name, j);
       fprintf(m, "newmtl group_%s_%i\n", data->models[i].name, j);
-      fprintf(m, "map_Kd %s.BMP\n", data->surfaces[j].texture_name);
+      fprintf(m, "map_Kd %s\n", data->surfaces[j].texture_name);
 
       for (unsigned int k = 0; k < data->indice_count; k++)
       {
@@ -1653,12 +1666,16 @@ void bsp_write(bsp_data* data, char* filename, char* matname)
   fclose(f);
 }
 
-void mod_write(mod_data* data, char* filename, char* matname)
+void mod_write(mod_data* data, char* filename, char* prefix)
 {
-  FILE* f = fopen(filename, "w");
-  FILE* m = fopen(matname, "w");
+  char obj[64], mtl[64];
+  sprintf(obj, "%s/%s.OBJ", prefix, filename);
+  sprintf(mtl, "%s/%s.MTL", prefix, filename);
 
-  fprintf(f, "mtllib %s\n", matname);
+  FILE* f = fopen(obj, "w");
+  FILE* m = fopen(mtl, "w");
+
+  fprintf(f, "mtllib %s\n", mtl);
 
   for (unsigned int i = 0; i < data->mesh_count; i++)
   {
@@ -1695,7 +1712,7 @@ void mod_write(mod_data* data, char* filename, char* matname)
       fprintf(f, "usemtl group_%i\n", counter);
       fprintf(m, "newmtl group_%i\n", counter);
       if (data->meshes[i].sections[j].texture_file[0] != 0)
-        fprintf(m, "map_Kd %s.BMP\n", data->meshes[i].sections[j].texture_file);
+        fprintf(m, "map_Kd %s\n", data->meshes[i].sections[j].texture_file);
 
       for (unsigned int k = 0; k < data->meshes[i].sections[j].triangle_count; k++)
       {
@@ -1965,12 +1982,13 @@ void shp_write(shp_data* data, char* filename)
 
 // Main
 
-void extract(brn_data* brn, char* filename)
+void extract(brn_data* brn, char* filename, char* prefix)
 {
+  printf("Extracting %s\n", filename);
   if (strnstr(filename, ".BMP", 40))
   {
     bmp_data* bmp = brn_extract(brn, filename, (handler)bmp_handler);
-    bmp_write(bmp, filename);
+    bmp_write(bmp, filename, prefix);
     bmp_close(bmp);
   }
   else if (strnstr(filename, ".MUL", 40))
@@ -1992,14 +2010,7 @@ void extract(brn_data* brn, char* filename)
 
     for (unsigned int i = 0; i < bsp->surface_count; i++)
     {
-      char bmpa[64], bmpf[64];
-      sprintf(bmpa, "%s.BMP", bsp->surfaces[i].texture_name);
-      for(int j = 0; (bmpa[j] = (char)toupper(bmpa[j])); j++);
-      sprintf(bmpf, "%s/%s", filename, bmpa);
-
-      bmp_data* bmp = brn_extract(brn, bmpa, (handler)bmp_handler);
-      bmp_write(bmp, bmpf);
-      bmp_close(bmp);
+      extract(brn, bsp->surfaces[i].texture_name, filename);
     }
     bsp_close(bsp);
   }
@@ -2007,27 +2018,17 @@ void extract(brn_data* brn, char* filename)
   {
     mkdir(filename, S_IRWXU);
 
-    char obj[64], mtl[64];
-    sprintf(obj, "%s/%s.OBJ", filename, filename);
-    sprintf(mtl, "%s/%s.MTL", filename, filename);
-
     mod_data* mod = brn_extract(brn, filename, (handler)mod_handler);
-    mod_write(mod, obj, mtl);
+    mod_write(mod, filename, filename);
 
     for (unsigned int i = 0; i < mod->mesh_count; i++)
     {
       for (unsigned int j = 0; j < mod->meshes[i].section_count; j++)
       {
-        if (mod->meshes[i].sections[j].texture_file[0] != 0)
-        {
-          char bmpa[64], bmpf[64];
-          sprintf(bmpa, "%s.BMP", mod->meshes[i].sections[j].texture_file);
-          sprintf(bmpf, "%s/%s", filename, bmpa);
+        if (mod->meshes[i].sections[j].texture_file[0] == 0)
+          continue;
 
-          bmp_data* bmp = brn_extract(brn, bmpa, (handler)bmp_handler);
-          bmp_write(bmp, bmpf);
-          bmp_close(bmp);
-        }
+        extract(brn, mod->meshes[i].sections[j].texture_file, filename);
       }
     }
 
@@ -2050,19 +2051,15 @@ void extract(brn_data* brn, char* filename)
   else if (strnstr(filename, ".SCN", 40))
   {
     scn_data* scn = brn_extract(brn, filename, (handler)scn_handler);
-    extract(brn, scn->bsp);
+    if (scn->bsp[0]) {
+      extract(brn, scn->bsp, "");
+    }
 
     for (int i = 0; i < 6; i++)
     {
       if (scn->skybox[i][0] == 0) continue;
 
-      char bmpa[64], bmpf[64];
-      sprintf(bmpa, "%s", scn->skybox[i]);
-      sprintf(bmpf, "%s/%s", scn->bsp, bmpa);
-
-      bmp_data* bmp = brn_extract(brn, bmpa, (handler)bmp_handler);
-      bmp_write(bmp, bmpf);
-      bmp_close(bmp);
+      extract(brn, scn->skybox[i], scn->bsp);
     }
     scn_close(scn);
   }
@@ -2087,7 +2084,7 @@ int main(int argc, char** argv)
   }
   else
   {
-    extract(brn, argv[1]);    
+    extract(brn, argv[1], "");
   }
   brn_close(brn);
 
