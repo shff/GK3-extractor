@@ -2050,7 +2050,7 @@ void extract(brn_data* brn, char* filename)
   else if (strnstr(filename, ".SCN", 40))
   {
     scn_data* scn = brn_extract(brn, filename, (handler)scn_handler);
-    // extract(brn, scn->bsp);
+    extract(brn, scn->bsp);
 
     for (int i = 0; i < 6; i++)
     {
@@ -2059,10 +2059,10 @@ void extract(brn_data* brn, char* filename)
       char bmpa[64], bmpf[64];
       sprintf(bmpa, "%s", scn->skybox[i]);
       sprintf(bmpf, "%s/%s", scn->bsp, bmpa);
-      
-      // bmp_data* bmp = brn_extract(brn, bmpa, bmp_handler);
-      // bmp_write(bmp, bmpf);
-      // bmp_close(bmp);
+
+      bmp_data* bmp = brn_extract(brn, bmpa, (handler)bmp_handler);
+      bmp_write(bmp, bmpf);
+      bmp_close(bmp);
     }
     scn_close(scn);
   }
