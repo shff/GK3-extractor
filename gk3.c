@@ -1564,7 +1564,7 @@ void bmp_write(bmp_data* data, char* filename, char* prefix)
   if (data == NULL) return;
 
   char filename2[256];
-  if (prefix[0]) {
+  if (prefix) {
     sprintf(filename2, "%s/%s", prefix, filename);
   } else {
     sprintf(filename2, "%s", filename);
@@ -2052,7 +2052,7 @@ void extract(brn_data* brn, char* filename, char* prefix)
   {
     scn_data* scn = brn_extract(brn, filename, (handler)scn_handler);
     if (scn->bsp[0]) {
-      extract(brn, scn->bsp, "");
+      extract(brn, scn->bsp, NULL);
     }
 
     for (int i = 0; i < 6; i++)
@@ -2084,7 +2084,7 @@ int main(int argc, char** argv)
   }
   else
   {
-    extract(brn, argv[1], "");
+    extract(brn, argv[1], NULL);
   }
   brn_close(brn);
 
