@@ -1620,12 +1620,18 @@ void mul_write(mul_data* data)
   }
 }
 
-void bsp_write(bsp_data* data, char* filename, char* matname)
+void bsp_write(bsp_data* data, char* filename)
 {
-  FILE* f = fopen(filename, "w");
-  FILE* m = fopen(matname, "w");
+  mkdir(filename, S_IRWXU);
 
-  fprintf(f, "mtllib %s\n", matname);
+  char obj[64], mtl[64];
+  sprintf(obj, "%s/%s.OBJ", filename, filename);
+  sprintf(mtl, "%s/%s.MTL", filename, filename);
+
+  FILE* f = fopen(obj, "w");
+  FILE* m = fopen(mtl, "w");
+
+  fprintf(f, "mtllib %s.MTL\n", filename);
 
   for (unsigned int i = 0; i < data->vertice_count; i++)
     fprintf(f, "v %f %f %f\n", data->vertices[i].x, data->vertices[i].y, data->vertices[i].z);
@@ -1675,7 +1681,7 @@ void mod_write(mod_data* data, char* filename, char* prefix)
   FILE* f = fopen(obj, "w");
   FILE* m = fopen(mtl, "w");
 
-  fprintf(f, "mtllib %s\n", mtl);
+  fprintf(f, "mtllib %s.MTL\n", filename);
 
   for (unsigned int i = 0; i < data->mesh_count; i++)
   {
@@ -1999,14 +2005,9 @@ void extract(brn_data* brn, char* filename, char* prefix)
   }
   else if (strnstr(filename, ".BSP", 40))
   {
-    char obj[64], mtl[64];
-    sprintf(obj, "%s/%s.OBJ", filename, filename);
-    sprintf(mtl, "%s/%s.MTL", filename, filename);
-
     bsp_data* bsp = brn_extract(brn, filename, (handler)bsp_handler);
 
-    mkdir(filename, S_IRWXU);
-    bsp_write(bsp, obj, mtl);
+    bsp_write(bsp, filename);
 
     for (unsigned int i = 0; i < bsp->surface_count; i++)
     {
