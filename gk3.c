@@ -684,7 +684,7 @@ brn_data* brn_open(char* filename, int is_main)
   {
     data->barns = malloc(sizeof(struct brn_data_barn) * directory_count);
     memset(data->barns, 0, sizeof(struct brn_data_barn) * directory_count);
-  
+
     for (unsigned int i = 0; i < directory_count; i++)
     {
       if (strncmp(dh[i].type, "riDD", 4) == 0)
@@ -1646,14 +1646,19 @@ void bsp_write(bsp_data* data, char* filename)
   {
     fprintf(f, "g group_%s\n", data->models[i].name);
 
+    char texture_name[64] = {0};
     for (unsigned int j = 0; j < data->surface_count; j++)
     {
       if (data->surfaces[j].model_index != i)
         continue;
 
-      fprintf(f, "usemtl group_%s_%i\n", data->models[i].name, j);
-      fprintf(m, "newmtl group_%s_%i\n", data->models[i].name, j);
-      fprintf(m, "map_Kd %s\n", data->surfaces[j].texture_name);
+      if (strncmp(texture_name, data->surfaces[j].texture_name, 64))
+      {
+        fprintf(f, "usemtl group_%s\n", data->surfaces[j].texture_name);
+        fprintf(m, "newmtl group_%s\n", data->surfaces[j].texture_name);
+        fprintf(m, "map_Kd %s\n", data->surfaces[j].texture_name);
+        strncpy(texture_name, data->surfaces[j].texture_name, 64);
+      }
 
       for (unsigned int k = 0; k < data->indice_count; k++)
       {
@@ -1663,7 +1668,7 @@ void bsp_write(bsp_data* data, char* filename)
         fprintf(f, "f %i/%i/%i %i/%i/%i %i/%i/%i\n",
           data->indices[k].a + 1, data->indices[k].a + 1, data->indices[k].a + 1,
           data->indices[k].b + 1, data->indices[k].b + 1, data->indices[k].b + 1,
-          data->indices[k].c + 1, data->indices[k].c + 1, data->indices[k].c + 1);        
+          data->indices[k].c + 1, data->indices[k].c + 1, data->indices[k].c + 1);
       }
     }
   }
