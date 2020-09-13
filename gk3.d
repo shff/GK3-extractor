@@ -494,9 +494,9 @@ vertice transform(float[12] m, vertice v)
 
 int lzo(char* input, uint in_len, char* output, uint* out_len)
 {
-  //#define UA_COPY4(dd,ss)     (* (uint*) (void *) (dd) = * (const uint*) (const void *) (ss))
-  //#define UA_COPY8(dd,ss)     (* (ulong int*) (void *) (dd) = * (const ulong int*) (const void *) (ss))
-  //#define UA_GET_LE16(ss)     (* (const ushort int*) (const void *) (ss))
+  //#define UA_COPY4(dd,ss)     (* (uint*) (void *) (dd) = * (uint*) (void *) (ss))
+  //#define UA_COPY8(dd,ss)     (* (ulong*) (void *) (dd) = * (ulong*) (void *) (ss))
+  //#define UA_GET_LE16(ss)     (* (ushort int*) (void *) (ss))
 
   *out_len = 0;
 
@@ -534,7 +534,8 @@ int lzo(char* input, uint in_len, char* output, uint* out_len)
     t += 3;
     if (t >= 8) do
     {
-      UA_COPY8(op,ip);
+      (* cast(ulong*)op = * cast(ulong*)ip);
+
       op += 8; ip += 8; t -= 8;
     } while (t >= 8);
     if (t >= 4)
@@ -623,7 +624,7 @@ match:
         t += (3 - 1);
         if (t >= 8) do
         {
-          UA_COPY8(op,m_pos);
+          *cast(ulong*)op = *cast(ulong*)m_pos;
           op += 8; m_pos += 8; t -= 8;
         } while (t >= 8);
         if (t >= 4)
