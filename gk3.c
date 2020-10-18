@@ -1177,9 +1177,10 @@ act_data* act_handler(char* content)
     return NULL;
   }
 
-  // Skip Frame Offsets
+  // Get Frame Offsets
 
-  offset += sizeof(unsigned int) * h.frame_count;
+  unsigned int offsets[h.frame_count];
+  freadb(&offsets, sizeof(unsigned int), h.frame_count, content);
 
   // Read Frames
 
@@ -1188,6 +1189,14 @@ act_data* act_handler(char* content)
 
   for (unsigned int i = 0; i < h.frame_count; i++)
   {
+    // Assert position
+
+    if (offsets[i] != offset)
+    {
+      printf("Incorrect offset in ACT file\n");
+      return NULL;
+    }
+
     data->frames[i].mesh_count = h.mesh_count;
     data->frames[i].meshes = malloc(sizeof(struct act_data_mesh) * h.mesh_count);
 
@@ -1210,6 +1219,7 @@ act_data* act_handler(char* content)
       data->frames[i].meshes[j].sections = NULL;
 
       unsigned int end = offset + f.data_size;
+
       while (offset < end)
       {
         act_action a;
@@ -1238,28 +1248,41 @@ act_data* act_handler(char* content)
 
           if (a.type == 0)
           {
+            // Uncompressed vertices
+
             freadb(data->frames[i].meshes[j].sections[k].vertices, sizeof(vertice), g.vertice_count, content);
           }
           else if (a.type == 1)
           {
+            // Compressed vertices
+
             char mask[g.vertice_count / 4 + 1];
             freadb(&mask, sizeof(char), g.vertice_count / 4 + 1, content);
 
             for (unsigned int l = 0; l < g.vertice_count; l++)
             {
               vertice v = { .x = 0.0f, .y = 0.0f, .z = 0.0f };
+
+              // Decompress
+
               unsigned int compression = (mask[l / 4] >> ((l & 3) * 2)) & 0x3;
               if (compression == 1)
               {
                 unsigned char c[3];
                 freadb(&c, sizeof(unsigned char), 3, content);
-                v.x = S1I2F5(c[0]); v.y = S1I2F5(c[1]); v.z = S1I2F5(c[2]);
+
+                v.x = S1I2F5(c[0]);
+                v.y = S1I2F5(c[1]);
+                v.z = S1I2F5(c[2]);
               }
               else if (compression == 2)
               {
                 unsigned short c[3];
                 freadb(&c, sizeof(unsigned short), 3, content);
-                v.x = S1I7F8(c[0]); v.y = S1I7F8(c[1]); v.z = S1I7F8(c[2]);
+
+                v.x = S1I7F8(c[0]);
+                v.y = S1I7F8(c[1]);
+                v.z = S1I7F8(c[2]);
               }
 
               // TODO Convert from Delta to Absolute
