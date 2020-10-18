@@ -1285,11 +1285,17 @@ act_data* act_handler(char* content)
                 v.z = S1I7F8(c[2]);
               }
 
-              // TODO Convert from Delta to Absolute
+              // Convert from Delta to Absolute
 
-              // v.x += data->frames[i - 1].meshes[j].sections[k].vertices[l].x;
-              // v.y += data->frames[i - 1].meshes[j].sections[k].vertices[l].y;
-              // v.z += data->frames[i - 1].meshes[j].sections[k].vertices[l].z;
+              for (unsigned int m = i - 1; i == 0; i--)
+              {
+                if (data->frames[m].meshes[j].section_count)
+                {
+                  v.x += data->frames[m].meshes[j].sections[k].vertices[l].x;
+                  v.y += data->frames[m].meshes[j].sections[k].vertices[l].y;
+                  v.z += data->frames[m].meshes[j].sections[k].vertices[l].z;
+                }
+              }
 
               data->frames[i].meshes[j].sections[k].vertices[l] = v;
             }
@@ -1319,14 +1325,17 @@ void act_close(act_data* data)
   if (data)
   {
     for (unsigned int i = 0; i < data->frame_count; i++)
+    {
       for (unsigned int j = 0; j < data->frames[i].mesh_count; j++)
+      {
         for (unsigned int k = 0; k < data->frames[i].meshes[j].section_count; k++)
+        {
           free(data->frames[i].meshes[j].sections[k].vertices);
-    for (unsigned int i = 0; i < data->frame_count; i++)
-      for (unsigned int j = 0; j < data->frames[i].mesh_count; j++)
+        }
         free(data->frames[i].meshes[j].sections);
-    for (unsigned int i = 0; i < data->frame_count; i++)
+      }
       free(data->frames[i].meshes);
+    }
     free(data->frames);
     free(data);
   }
