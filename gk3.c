@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 int uncompress(unsigned char* out, unsigned long* out_len, unsigned char* in, unsigned long in_len);
 
@@ -2053,7 +2054,18 @@ void shp_write(shp_data* data, char* filename)
 
 void extract(brn_data* brn, char* filename, char* prefix)
 {
-  printf("Extracting %s\n", filename);
+  char filename2[256];
+  if (prefix) {
+    sprintf(filename2, "%s/%s", prefix, filename);
+  } else {
+    sprintf(filename2, "%s", filename);
+  }
+  if (access(filename2, F_OK ) != -1)
+  {
+    return;
+  }
+
+  printf("Extracting %s\n", filename2);
   if (strnstr(filename, ".BMP", 40))
   {
     bmp_data* bmp = brn_extract(brn, filename, (handler)bmp_handler);
