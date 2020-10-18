@@ -1637,7 +1637,7 @@ void bsp_write(bsp_data* data, char* filename)
   fprintf(f, "mtllib %s.MTL\n", filename);
 
   for (unsigned int i = 0; i < data->vertice_count; i++)
-    fprintf(f, "v %f %f %f\n", data->vertices[i].x, data->vertices[i].y, data->vertices[i].z);
+    fprintf(f, "v %f %f %f\n", data->vertices[i].x / 100.f, data->vertices[i].y / 100.f, data->vertices[i].z / 100.f);
 
   for (unsigned int i = 0; i < data->vertice_count; i++)
     fprintf(f, "vt %f %f\n", data->coords[i].u, data->coords[i].v);
