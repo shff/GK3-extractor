@@ -1677,6 +1677,64 @@ void bsp_write(bsp_data* data, char* filename)
   fclose(f);
 }
 
+void bsp_write_multi(unsigned int count, bsp_data** data, char* filename)
+{
+  int vertice_index = 0;
+  int indice_index = 0;
+  int model_index = 0;
+  int surface_index = 0;
+
+  bsp_data* new_data = malloc(sizeof(bsp_data));
+  memset(new_data, 0, sizeof(bsp_data));
+
+  for (unsigned int i = 0; i < count; i++)
+  {
+    new_data->vertice_count = vertice_index + data[i]->vertice_count;
+    new_data->indice_count = indice_index + data[i]->indice_count;
+    new_data->model_count = model_index + data[i]->model_count;
+    new_data->surface_count = surface_index + data[i]->surface_count;
+
+    new_data->vertices = realloc(new_data->vertices, sizeof(vertice) * new_data->vertice_count);
+    new_data->coords = realloc(new_data->coords, sizeof(coord) * new_data->vertice_count);
+    new_data->normals = realloc(new_data->normals, sizeof(vertice) * new_data->vertice_count);
+    new_data->indices = realloc(new_data->indices, sizeof(struct bsp_data_triangle) * new_data->indice_count);
+    new_data->models = realloc(new_data->models, sizeof(struct bsp_data_model) * new_data->model_count);
+    new_data->surfaces = realloc(new_data->surfaces, sizeof(struct bsp_data_surface) * new_data->surface_count);
+
+    for (unsigned int j = 0; j < data[i]->vertice_count; j++)
+    {
+      new_data->vertices[j + vertice_index] = data[i]->vertices[j];
+      new_data->coords[j + vertice_index] = data[i]->coords[j];
+      new_data->normals[j + vertice_index] = data[i]->normals[j];
+    }
+
+    for (unsigned int j = 0; j < data[i]->indice_count; j++)
+    {
+      new_data->indices[j + indice_index].a = data[i]->indices[j].a + vertice_index;
+      new_data->indices[j + indice_index].b = data[i]->indices[j].b + vertice_index;
+      new_data->indices[j + indice_index].c = data[i]->indices[j].c + vertice_index;
+      new_data->indices[j + indice_index].surface_index = data[i]->indices[j].surface_index + surface_index;
+    }
+
+    for (unsigned int j = 0; j < data[i]->model_count; j++)
+    {
+      memcpy(&new_data->models[j + model_index], &data[i]->models[j], sizeof(struct bsp_data_model));
+    }
+
+    for (unsigned int j = 0; j < data[i]->surface_count; j++)
+    {
+      memcpy(&new_data->surfaces[j + surface_index], &data[i]->surfaces[j], sizeof(struct bsp_data_model));
+    }
+
+    vertice_index += data[i]->vertice_count;
+    indice_index += data[i]->indice_count;
+    model_index += data[i]->model_count;
+    surface_index += data[i]->surface_count;
+  }
+
+  bsp_write(new_data, filename);
+}
+
 void mod_write(mod_data* data, char* filename, char* prefix)
 {
   char obj[64], mtl[64];
@@ -2079,18 +2137,67 @@ void extract(brn_data* brn, char* filename, char* prefix)
   }
 }
 
+void extract_multi(brn_data* brn, int count, char** filenames)
+{
+  if (count == 0)
+  {
+    printf("Usage: gk3 --multi RC1_A.BSP RC2.BSP\n");
+    return;
+  }
+
+  for (int i = 0; i < count; i++)
+  {
+    if (!strnstr(filenames[i], ".BSP", 40))
+    {
+      printf("Multi mode only works for BPS files\n");
+      return;
+    }
+  }
+
+  bsp_data* bsps[count];
+
+  for (int i = 0; i < count; i++)
+  {
+    bsps[i] = brn_extract(brn, filenames[i], (handler)bsp_handler);
+  }
+
+  bsp_write_multi(count, bsps, filenames[0]);
+
+  for (int i = 0; i < count; i++)
+  {
+    for (unsigned int j = 0; j < bsps[i]->surface_count; j++)
+    {
+      extract(brn, bsps[i]->surfaces[j].texture_name, filenames[0]);
+    }
+  }
+
+  for (int i = 0; i < count; i++)
+  {
+    bsp_close(bsps[i]);
+  }
+}
+
 int main(int argc, char** argv)
 {
   brn_data* brn = brn_open((char*)"CORE.BRN", 1);
 
-  if (argc < 2)
+  if (argc == 1)
   {
     for(unsigned int i = 0; i < brn->count; i++)
+    {
       printf("%s\n", brn->files[i].name);
+    }
+  }
+  else if (strncmp(argv[1], "--multi", 7) == 0)
+  {
+    extract_multi(brn, argc - 2, &argv[2]);
   }
   else
   {
-    extract(brn, argv[1], NULL);
+    for (int i = 1; i < argc; i++)
+    {
+      extract(brn, argv[i], NULL);
+    }
   }
   brn_close(brn);
 
