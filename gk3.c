@@ -319,6 +319,7 @@ typedef struct
   {
     unsigned int model_index;
     char texture_name[32];
+    int flags;
   }* surfaces;
 } bsp_data;
 
@@ -957,6 +958,7 @@ bsp_data* bsp_handler(char* content)
     sprintf(texture_name, "%s.BMP", surfaces[i].texture_name);
     for(int j = 0; (texture_name[j] = (char)toupper(texture_name[j])); j++);
 
+    data->surfaces[i].flags = surfaces[i].flags;
     data->surfaces[i].model_index = surfaces[i].model_index;
     strncpy(data->surfaces[i].texture_name, texture_name, 32);
   }
@@ -1653,6 +1655,9 @@ void bsp_write(bsp_data* data, char* filename)
       if (data->surfaces[j].model_index != i)
         continue;
 
+      if (data->surfaces[j].flags == 12)
+        continue;
+
       if (strncmp(texture_name, data->surfaces[j].texture_name, 64))
       {
         fprintf(f, "usemtl group_%s\n", data->surfaces[j].texture_name);
@@ -1724,7 +1729,7 @@ void bsp_write_multi(unsigned int count, bsp_data** data, char* filename)
 
     for (unsigned int j = 0; j < data[i]->surface_count; j++)
     {
-      memcpy(&new_data->surfaces[j + surface_index], &data[i]->surfaces[j], sizeof(struct bsp_data_model));
+      memcpy(&new_data->surfaces[j + surface_index], &data[i]->surfaces[j], sizeof(struct bsp_data_surface));
     }
 
     vertice_index += data[i]->vertice_count;
