@@ -427,7 +427,7 @@ float S1I7F8(unsigned short n)
 
 float S1I2F5(unsigned char n)
 {
-  return (((n & 0x8000) != 0) ? -1 : 1) * (((n & 0x1f) / 32.0f) + ((n & 0x7f) >> 5));
+  return (((n & 0x80) != 0) ? -1 : 1) * (((n & 0x1f) / 32.0f) + ((n & 0x7f) >> 5));
 }
 
 vertice normalize(vertice v)
