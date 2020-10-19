@@ -1113,7 +1113,7 @@ mod_data* mod_handler(char* content)
 
       for (unsigned int k = 0; k < data->meshes[i].sections[j].vertice_count; k++)
       {
-        vertice v = transform(data->meshes[i].transform, data->meshes[i].sections[j].vertices[k]);
+        vertice v = data->meshes[i].sections[j].vertices[k];
         data->meshes[i].sections[j].vertices[k].x = v.x;
         data->meshes[i].sections[j].vertices[k].y = v.y;
         data->meshes[i].sections[j].vertices[k].z = v.z;
@@ -1793,7 +1793,7 @@ void mod_write(mod_data* data, char* filename, char* prefix)
     {
       for (unsigned int k = 0; k < data->meshes[i].sections[j].vertice_count; k++)
       {
-        vertice v = data->meshes[i].sections[j].vertices[k];
+        vertice v = transform(data->meshes[i].transform, data->meshes[i].sections[j].vertices[k]);
         fprintf(f, "v %f %f %f\n", v.x, v.y, v.z);
       }
       for (unsigned int k = 0; k < data->meshes[i].sections[j].vertice_count; k++)
