@@ -1287,13 +1287,14 @@ act_data* act_handler(char* content)
 
               // Convert from Delta to Absolute
 
-              for (unsigned int m = i - 1; i == 0; i--)
+              for (int m = i - 1; m >= 0; m--)
               {
-                if (data->frames[m].meshes[j].section_count)
+                if (data->frames[m].meshes[j].section_count > k)
                 {
                   v.x += data->frames[m].meshes[j].sections[k].vertices[l].x;
                   v.y += data->frames[m].meshes[j].sections[k].vertices[l].y;
                   v.z += data->frames[m].meshes[j].sections[k].vertices[l].z;
+                  break;
                 }
               }
 
