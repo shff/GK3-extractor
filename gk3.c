@@ -353,6 +353,7 @@ typedef struct
     unsigned int mesh_count;
     struct act_data_mesh
     {
+      int has_transform;
       float transform[12];
       float bounding_box[6];
       unsigned int section_count;
@@ -1226,6 +1227,7 @@ act_data* act_handler(char* content)
 
       data->frames[i].meshes[j].section_count = 0;
       data->frames[i].meshes[j].sections = NULL;
+      data->frames[i].meshes[j].has_transform = 0;
 
       unsigned int end = offset + f.data_size;
 
@@ -1313,9 +1315,10 @@ act_data* act_handler(char* content)
         }
         else if (a.type == 2)
         {
-          // TODO store modification on the transformation matrix
+          // store modification on the transformation matrix
 
-          offset += sizeof(float) * 12;
+          data->frames[i].meshes[j].has_transform = 1;
+          freadb(data->frames[i].meshes[j].transform, sizeof(float), 12, content);
         }
         else if (a.type == 3)
         {
