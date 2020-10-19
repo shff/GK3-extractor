@@ -1868,8 +1868,6 @@ void mod_write_act(mod_data* data, act_data* act_data, char* prefix)
       {
         // Apply transformation matrix
 
-        // TODO - This is probably wrong
-
         memcpy(data->meshes[j].transform, act_data->frames[i].meshes[j].transform, sizeof(float) * 12);
       }
 
