@@ -1117,6 +1117,8 @@ mod_data* mod_handler(char* content)
         data->meshes[i].sections[j].vertices[k].x = v.x;
         data->meshes[i].sections[j].vertices[k].y = v.y;
         data->meshes[i].sections[j].vertices[k].z = v.z;
+
+        data->meshes[i].sections[j].coords[k].v = 1.0f - data->meshes[i].sections[j].coords[k].v;
       }
 
       // Read LODK Sections - Ignore
