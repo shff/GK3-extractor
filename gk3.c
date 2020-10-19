@@ -346,6 +346,7 @@ typedef struct
 
 typedef struct
 {
+  char model_name[32];
   unsigned int frame_count;
   struct act_data_frame
   {
@@ -1177,6 +1178,12 @@ act_data* act_handler(char* content)
   {
     fprintf(stderr, "Invalid animation file.\n");
     return NULL;
+  }
+
+  memcpy(data->model_name, h.model_name, 32);
+  for (int i = 0; i < 32; i++)
+  {
+    data->model_name[i] = toupper(data->model_name[i]);
   }
 
   // Get Frame Offsets
