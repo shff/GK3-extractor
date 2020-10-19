@@ -2159,7 +2159,7 @@ void extract(brn_data* brn, char* filename, char* prefix)
   } else {
     sprintf(filename2, "%s", filename);
   }
-  if (access(filename2, F_OK ) != -1)
+  if (strnstr(filename, ".BMP", 40) != 0 && access(filename2, F_OK ) != -1)
   {
     return;
   }
