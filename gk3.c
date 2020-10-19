@@ -2213,7 +2213,7 @@ void extract(brn_data* brn, char* filename, char* prefix)
 
     act_data* act = brn_extract(brn, filename, (handler)act_handler);
 
-    char mod_filename[8];
+    char mod_filename[255];
     sprintf(mod_filename, "%s.MOD", act->model_name);
     mod_data* mod = brn_extract(brn, mod_filename, (handler)mod_handler);
 
