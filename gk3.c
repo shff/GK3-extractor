@@ -1036,7 +1036,7 @@ mod_data* mod_handler(char* content)
 {
   unsigned int offset = 0;
   mod_data* data = malloc(sizeof(mod_data));
-  memset(data, 0, sizeof(act_data));
+  memset(data, 0, sizeof(mod_data));
 
   // Load Header
 
