@@ -1111,15 +1111,10 @@ mod_data* mod_handler(char* content)
       freadb(data->meshes[i].sections[j].coords, sizeof(coord), sh.vertice_count, content);
       freadb(data->meshes[i].sections[j].triangles, sizeof(triangle), sh.triangle_count, content);
 
-      // Transform in place
+      // Convert UV coordinates
 
       for (unsigned int k = 0; k < data->meshes[i].sections[j].vertice_count; k++)
       {
-        vertice v = data->meshes[i].sections[j].vertices[k];
-        data->meshes[i].sections[j].vertices[k].x = v.x;
-        data->meshes[i].sections[j].vertices[k].y = v.y;
-        data->meshes[i].sections[j].vertices[k].z = v.z;
-
         data->meshes[i].sections[j].coords[k].v = 1.0f - data->meshes[i].sections[j].coords[k].v;
       }
 
