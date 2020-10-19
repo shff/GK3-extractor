@@ -1883,9 +1883,9 @@ void mod_write_act(mod_data* data, act_data* act_data, char* prefix)
 
         for (unsigned int l = 0; l < act_data->frames[i].meshes[j].sections[k].vertice_count; l++)
         {
-          // data->meshes[j].sections[k].vertices[l].x += act_data->frames[i].meshes[j].sections[k].vertices[l].x;
-          // data->meshes[j].sections[k].vertices[l].y += act_data->frames[i].meshes[j].sections[k].vertices[l].y;
-          // data->meshes[j].sections[k].vertices[l].z += act_data->frames[i].meshes[j].sections[k].vertices[l].z;
+          data->meshes[j].sections[k].vertices[l].x = act_data->frames[i].meshes[j].sections[k].vertices[l].x;
+          data->meshes[j].sections[k].vertices[l].y = act_data->frames[i].meshes[j].sections[k].vertices[l].y;
+          data->meshes[j].sections[k].vertices[l].z = act_data->frames[i].meshes[j].sections[k].vertices[l].z;
         }
       }
     }
