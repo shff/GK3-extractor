@@ -1852,6 +1852,55 @@ void mod_write(mod_data* data, char* filename, char* prefix)
   fclose(f);
 }
 
+void mod_write_act(mod_data* data, act_data* act_data, char* prefix)
+{
+  for (unsigned int i = 0; i < act_data->frame_count; i++)
+  {
+    if (data->mesh_count != act_data->frames[i].mesh_count)
+    {
+      printf("Mesh count mismatch in frame %i - %i (MOD) vs %i (ACT)\n", i, data->mesh_count, act_data->frames[i].mesh_count);
+      return;
+    }
+
+    for (unsigned int j = 0; j < act_data->frames[i].mesh_count; j++)
+    {
+      if (data->meshes[j].section_count != act_data->frames[i].meshes[j].section_count)
+      {
+        // Section count mismatches are common, just ignore
+      }
+
+      if (act_data->frames[i].meshes[j].has_transform)
+      {
+        // Apply transformation matrix
+
+        // TODO - This is probably wrong
+
+        memcpy(data->meshes[j].transform, act_data->frames[i].meshes[j].transform, sizeof(float) * 12);
+      }
+
+      for (unsigned int k = 0; k < act_data->frames[i].meshes[j].section_count; k++)
+      {
+        if (data->meshes[j].sections[k].vertice_count != act_data->frames[i].meshes[j].sections[k].vertice_count)
+        {
+          printf("Vertice count mismatch in frame %i mesh %i section %i - %i (MOD) vs %i (ACT)\n", i, j, k, data->meshes[j].sections[k].vertice_count, act_data->frames[i].meshes[j].sections[k].vertice_count);
+          return;
+        }
+
+        for (unsigned int l = 0; l < act_data->frames[i].meshes[j].sections[k].vertice_count; l++)
+        {
+          // data->meshes[j].sections[k].vertices[l].x += act_data->frames[i].meshes[j].sections[k].vertices[l].x;
+          // data->meshes[j].sections[k].vertices[l].y += act_data->frames[i].meshes[j].sections[k].vertices[l].y;
+          // data->meshes[j].sections[k].vertices[l].z += act_data->frames[i].meshes[j].sections[k].vertices[l].z;
+        }
+      }
+    }
+
+    char filename[64];
+    sprintf(filename, "frame_%i", i);
+    mod_write(data, filename, prefix);
+  }
+}
+
 void shp_operator1(char stack[128][128], unsigned int* stack_pos, const char* operator)
 {
   char buffer1[512];
@@ -2162,7 +2211,28 @@ void extract(brn_data* brn, char* filename, char* prefix)
   }
   else if (strnstr(filename, ".ACT", 40))
   {
+    mkdir(filename, S_IRWXU);
+
     act_data* act = brn_extract(brn, filename, (handler)act_handler);
+
+    char mod_filename[8];
+    sprintf(mod_filename, "%s.MOD", act->model_name);
+    mod_data* mod = brn_extract(brn, mod_filename, (handler)mod_handler);
+
+    mod_write_act(mod, act, filename);
+
+    for (unsigned int i = 0; i < mod->mesh_count; i++)
+    {
+      for (unsigned int j = 0; j < mod->meshes[i].section_count; j++)
+      {
+        if (mod->meshes[i].sections[j].texture_file[0] == 0)
+          continue;
+
+        extract(brn, mod->meshes[i].sections[j].texture_file, filename);
+      }
+    }
+
+    mod_close(mod);
     act_close(act);
   }
   else if (strnstr(filename, ".SHP", 40))
