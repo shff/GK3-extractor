@@ -360,6 +360,7 @@ typedef struct
       struct act_data_section
       {
         unsigned int vertice_count;
+        int type;
         vertice* vertices;
       }* sections;
     }* meshes;
@@ -1247,6 +1248,7 @@ act_data* act_handler(char* content)
 
           // Allocate the Vertice Array
 
+          data->frames[i].meshes[j].sections[k].type = a.type;
           data->frames[i].meshes[j].sections[k].vertice_count = g.vertice_count;
 
           // TODO - Find why I'm getting a segmentation error here when I use a proper size :/
@@ -1293,18 +1295,10 @@ act_data* act_handler(char* content)
                 v.y = S1I7F8(c[1]);
                 v.z = S1I7F8(c[2]);
               }
-
-              // Convert from Delta to Absolute
-
-              for (int m = i - 1; m >= 0; m--)
+              else if (compression != 0)
               {
-                if (data->frames[m].meshes[j].section_count > k)
-                {
-                  v.x += data->frames[m].meshes[j].sections[k].vertices[l].x;
-                  v.y += data->frames[m].meshes[j].sections[k].vertices[l].y;
-                  v.z += data->frames[m].meshes[j].sections[k].vertices[l].z;
-                  break;
-                }
+                printf("Unknown compression\n");
+                exit(1);
               }
 
               data->frames[i].meshes[j].sections[k].vertices[l] = v;
@@ -1883,9 +1877,18 @@ void mod_write_act(mod_data* data, act_data* act_data, char* prefix)
 
         for (unsigned int l = 0; l < act_data->frames[i].meshes[j].sections[k].vertice_count; l++)
         {
-          data->meshes[j].sections[k].vertices[l].x = act_data->frames[i].meshes[j].sections[k].vertices[l].x;
-          data->meshes[j].sections[k].vertices[l].y = act_data->frames[i].meshes[j].sections[k].vertices[l].y;
-          data->meshes[j].sections[k].vertices[l].z = act_data->frames[i].meshes[j].sections[k].vertices[l].z;
+          if (act_data->frames[i].meshes[j].sections[k].type == 0)
+          {
+            data->meshes[j].sections[k].vertices[l].x = act_data->frames[i].meshes[j].sections[k].vertices[l].x;
+            data->meshes[j].sections[k].vertices[l].y = act_data->frames[i].meshes[j].sections[k].vertices[l].y;
+            data->meshes[j].sections[k].vertices[l].z = act_data->frames[i].meshes[j].sections[k].vertices[l].z;
+          }
+          else if (act_data->frames[i].meshes[j].sections[k].type == 1)
+          {
+            data->meshes[j].sections[k].vertices[l].x += act_data->frames[i].meshes[j].sections[k].vertices[l].x;
+            data->meshes[j].sections[k].vertices[l].y += act_data->frames[i].meshes[j].sections[k].vertices[l].y;
+            data->meshes[j].sections[k].vertices[l].z += act_data->frames[i].meshes[j].sections[k].vertices[l].z;
+          }
         }
       }
     }
