@@ -1248,7 +1248,10 @@ act_data* act_handler(char* content)
           // Allocate the Vertice Array
 
           data->frames[i].meshes[j].sections[k].vertice_count = g.vertice_count;
-          data->frames[i].meshes[j].sections[k].vertices = malloc(sizeof(vertice) * g.vertice_count);
+
+          // TODO - Find why I'm getting a segmentation error here when I use a proper size :/
+
+          data->frames[i].meshes[j].sections[k].vertices = malloc(sizeof(vertice) * g.vertice_count * 20);
 
           // Read Vertices
 
@@ -1861,7 +1864,7 @@ void mod_write_act(mod_data* data, act_data* act_data, char* prefix)
     {
       if (data->meshes[j].section_count != act_data->frames[i].meshes[j].section_count)
       {
-        // Section count mismatches are common, just ignore
+        // Section count mismatches are common (eg: GAB_GABPUTTAPE.ACT), just ignore
       }
 
       if (act_data->frames[i].meshes[j].has_transform)
@@ -1875,8 +1878,7 @@ void mod_write_act(mod_data* data, act_data* act_data, char* prefix)
       {
         if (data->meshes[j].sections[k].vertice_count != act_data->frames[i].meshes[j].sections[k].vertice_count)
         {
-          printf("Vertice count mismatch in frame %i mesh %i section %i - %i (MOD) vs %i (ACT)\n", i, j, k, data->meshes[j].sections[k].vertice_count, act_data->frames[i].meshes[j].sections[k].vertice_count);
-          return;
+          // Vertice mismatches happen (eg: GRA_GRALERREADNOTEA.ACT), just ignore
         }
 
         for (unsigned int l = 0; l < act_data->frames[i].meshes[j].sections[k].vertice_count; l++)
