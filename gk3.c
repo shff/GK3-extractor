@@ -1856,11 +1856,6 @@ void mod_write_act(mod_data* data, act_data* act_data, char* prefix)
 
     for (unsigned int j = 0; j < act_data->frames[i].mesh_count; j++)
     {
-      if (data->meshes[j].section_count != act_data->frames[i].meshes[j].section_count)
-      {
-        // Section count mismatches are common (eg: GAB_GABPUTTAPE.ACT), just ignore
-      }
-
       if (act_data->frames[i].meshes[j].has_transform)
       {
         // Apply transformation matrix
@@ -1868,11 +1863,19 @@ void mod_write_act(mod_data* data, act_data* act_data, char* prefix)
         memcpy(data->meshes[j].transform, act_data->frames[i].meshes[j].transform, sizeof(float) * 12);
       }
 
+      if (act_data->frames[i].meshes[j].section_count > data->meshes[j].section_count)
+      {
+        printf("Session count mismatch in frame %i mesh %i - %i (MOD) vs %i (ACT)\n", i, j, data->meshes[j].section_count, act_data->frames[i].meshes[j].section_count);
+        continue;
+      }
+
       for (unsigned int k = 0; k < act_data->frames[i].meshes[j].section_count; k++)
       {
-        if (data->meshes[j].sections[k].vertice_count != act_data->frames[i].meshes[j].sections[k].vertice_count)
+        if (act_data->frames[i].meshes[j].sections[k].vertice_count > data->meshes[j].sections[k].vertice_count)
         {
           // Vertice mismatches happen (eg: GRA_GRALERREADNOTEA.ACT), just ignore
+          printf("Vertice count mismatch in frame %i mesh %i section %i - %i (MOD) vs %i (ACT)\n", i, j, k, data->meshes[j].sections[k].vertice_count, act_data->frames[i].meshes[j].sections[k].vertice_count);
+          continue;
         }
 
         for (unsigned int l = 0; l < act_data->frames[i].meshes[j].sections[k].vertice_count; l++)
