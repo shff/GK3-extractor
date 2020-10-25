@@ -1710,6 +1710,36 @@ bsp_data* bsp_merge(unsigned int count, bsp_data** data)
     surface_index += data[i]->surface_count;
   }
 
+  // Deduplicate indices
+
+  for (unsigned int i = 0; i < new_data->vertice_count; i++)
+  {
+    for (unsigned int i2 = 0; i2 < i; i2++)
+    {
+      if (new_data->vertices[i].x == new_data->vertices[i2].x
+        && new_data->vertices[i].y == new_data->vertices[i2].y
+        && new_data->vertices[i].z == new_data->vertices[i2].z
+        && new_data->normals[i].x == new_data->normals[i2].x
+        && new_data->normals[i].y == new_data->normals[i2].y
+        && new_data->normals[i].z == new_data->normals[i2].z
+        && new_data->coords[i].u == new_data->coords[i2].u
+        && new_data->coords[i].v == new_data->coords[i2].v)
+      {
+        // Stop using the duplicate version
+
+        for (unsigned int j = 0; j < new_data->indice_count; j++)
+        {
+          if (new_data->indices[j].a == i2)
+            new_data->indices[j].a = i;
+          if (new_data->indices[j].b == i2)
+            new_data->indices[j].b = i;
+          if (new_data->indices[j].c == i2)
+            new_data->indices[j].c = i;
+        }
+      }
+    }
+  }
+
   return new_data;
 }
 
