@@ -1607,7 +1607,7 @@ void bsp_write(bsp_data* data, char* filename)
   fclose(f);
 }
 
-void bsp_write_multi(unsigned int count, bsp_data** data, char* filename)
+bsp_data* bsp_merge(unsigned int count, bsp_data** data)
 {
   int vertice_index = 0;
   int indice_index = 0;
@@ -1662,7 +1662,7 @@ void bsp_write_multi(unsigned int count, bsp_data** data, char* filename)
     surface_index += data[i]->surface_count;
   }
 
-  bsp_write(new_data, filename);
+  return new_data;
 }
 
 void mod_write(mod_data* data, char* filename, char* prefix)
@@ -2161,7 +2161,8 @@ void extract_multi(brn_data* brn, int count, char** filenames)
     bsps[i] = brn_extract(brn, filenames[i], (handler)bsp_handler);
   }
 
-  bsp_write_multi(count, bsps, filenames[0]);
+  bsp_data* new_data = bsp_merge(count, bsps);
+  bsp_write(new_data, filenames[0]);
 
   for (int i = 0; i < count; i++)
   {
