@@ -369,17 +369,6 @@ typedef struct
 
 typedef struct
 {
-  char bsp[20];
-  unsigned int model_count;
-  struct scn_data_models
-  {
-    char name[20];
-  }* models;
-  char skybox[6][20];
-} scn_data;
-
-typedef struct
-{
   unsigned int import_count;
   unsigned int const_count;
   unsigned int variable_count;
@@ -1495,108 +1484,6 @@ void shp_close(shp_data* data)
   free(data);
 }
 
-scn_data* scn_handler(char* content)
-{
-  scn_data* data = malloc(sizeof(scn_data));
-
-  char section[64] = "GLOBAL";
-  unsigned int skybox_n = 0;
-  unsigned int model_capacity = 0;
-  data->models = 0;
-  data->model_count = 0;
-
-  // Split line by line
-  for(char *t = content, *s, *r, *line; (line = strtok_r(t, "\n\r", &s)); t = NULL)
-  {
-    line[strcspn(line, "/")] = 0;                                     // Strip comments
-    for(char* m = s - 2; *--m == 10; *m = 0);                         // Right trim
-    for(; *line && *line == 10; line++);                              // Left trim
-    if (!*line) continue;                                             // Skip blank lines
-
-    if (line[0] == '[')                                               // Identify Section
-    {
-      strncpy(section, strtok_r(line + 1, "]", &r), 64);              // Extract Header
-      for(int i = 0; (section[i] = (char)toupper(section[i])); i++);  // Uppercase
-      continue;                                                       // Finish this line
-    }
-
-    char *key = line, *value;
-    for(int i = 0; (line[i] = (char)toupper(line[i])); i++);
-    line = strtok_r(key, "=", &value);
-
-    if (strncmp(section, "GLOBAL", 5) == 0 && strncmp(key, "BSP", 3) == 0)
-    {
-      sprintf(data->bsp, "%s.BSP", value);
-    }
-    else if (strncmp(section, "MODELS", 6) == 0)
-    {
-      if (data->model_count + 1 > model_capacity)
-        data->models = realloc(data->models, sizeof(struct scn_data_models) * (model_capacity += 20));
-
-      sprintf(data->models[data->model_count++].name, "%s", key);
-    }
-    else if (strncmp(section, "SKYBOX", 6) == 0 && strncmp(key, "AZIMUTH", 7) != 0)
-    {
-      sprintf(data->skybox[skybox_n++], "%s.BMP", value);
-    }
-  }
-
-  return data;
-}
-
-void scn_close(scn_data* data)
-{
-  free(data->models);
-  free(data);
-}
-
-void* ini_handler(char* content)
-{
-  char section[64] = "GLOBAL", key[64] = "", subkey[64] = "";
-  int keyn = 0;
-
-  // Split line by line
-  for(char *t = content, *s, *r, *line; (line = strtok_r(t, "\n\r", &s)); t = NULL)
-  {
-    line[strcspn(line, "/")] = 0;                                     // Strip comments
-    for(char* m = s - 2; *--m == 10; *m = 0);                         // Right trim
-    for(; *line && *line == 10; line++);                              // Left trim
-    if (!*line) continue;                                             // Skip blank lines
-    sprintf(key, "%d", keyn++);                                       // Set 'Key' to a number
-
-    if (line[0] == '[')                                               // Identify Section
-    {
-      strncpy(section, strtok_r(line + 1, "]", &r), 64);              // Extract Header
-      for(int i = 0; (section[i] = (char)toupper(section[i])); i++);  // Uppercase
-      keyn = 0;                                                       // Reset key count
-      continue;                                                       // Finish this line
-    }
-    else if (strcspn(line, ",") <= strcspn(line, "="))                // Identify Alpha-Key
-    {
-      strncpy(key, strtok_r(line, ",", &line), 64);                   // Extract Alpha-Key
-      for(int i = 0; (key[i] = (char)toupper(key[i])); i++);          // Uppercase
-      if (line == 0)
-        printf("%s - %s\n", section, key);
-    }
-
-    for (char *u = line, *v; (line = strtok_r(u, "=", &v)); u = 0)    // Identify Subkey
-    {
-      for(; *line && *line == 10; line++);                            // Left trim
-      // for(int i = 0; (line[i] = (char)toupper(line[i])); i++);        // Uppercase
-      strncpy(subkey, line, 64);                                      // Extract Subkey
-
-      if (line[strcspn(line, "=") + 1] == '{')                        // If it's a array
-        line = strtok_r(v, "}", &v) + 1;                              // Extract Value
-      else                                                            // If it's a string
-        line = strtok_r(v, ",", &v);                                  // Extract Value
-
-      printf("%s --- %s --- %s --- %s\n", section, key, subkey, line);
-    }
-  }
-
-  return NULL;
-}
-
 // Writers
 
 void bmp_write(bmp_data* data, char* filename, char* prefix)
@@ -2245,25 +2132,6 @@ void extract(brn_data* brn, char* filename, char* prefix)
     shp_write(shp, txt);
     shp_close(shp);
   }
-  else if (strnstr(filename, ".SCN", 40))
-  {
-    scn_data* scn = brn_extract(brn, filename, (handler)scn_handler);
-    if (scn->bsp[0]) {
-      extract(brn, scn->bsp, NULL);
-    }
-
-    for (int i = 0; i < 6; i++)
-    {
-      if (scn->skybox[i][0] == 0) continue;
-
-      extract(brn, scn->skybox[i], scn->bsp);
-    }
-    scn_close(scn);
-  }
-  else if (strnstr(filename, ".SIF", 40) || strnstr(filename, ".STK", 40))
-  {
-    brn_extract(brn, filename, ini_handler);
-  }
   else
   {
     brn_extract(brn, filename, 0);
@@ -2288,7 +2156,6 @@ void extract_multi(brn_data* brn, int count, char** filenames)
   }
 
   bsp_data* bsps[count];
-
   for (int i = 0; i < count; i++)
   {
     bsps[i] = brn_extract(brn, filenames[i], (handler)bsp_handler);
