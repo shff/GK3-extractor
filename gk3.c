@@ -314,6 +314,8 @@ typedef struct
   struct bsp_data_model
   {
     char name[32];
+    int duplicate;
+    int surface_count_cache;
   }* models;
   struct bsp_data_surface
   {
@@ -931,7 +933,12 @@ bsp_data* bsp_handler(char* content)
 
   // Load contents - Ignore BSP-tree information
 
-  freadb(data->models, sizeof(bsp_model), h.model_count, content);
+  for (unsigned int i = 0; i < h.model_count; i++)
+  {
+    freadb(&data->models[i], sizeof(bsp_model), 1, content);
+    data->models[i].duplicate = 0;
+  }
+
   freadb(&surfaces, sizeof(bsp_surface), h.surface_count, content);
   offset += h.node_count * sizeof(unsigned short) * 8;
   offset += h.polygon_count * sizeof(unsigned short) * 4;
@@ -941,6 +948,22 @@ bsp_data* bsp_handler(char* content)
   offset += h.vertice_indice_count * sizeof(unsigned short);
   offset += h.texture_indice_count * sizeof(unsigned short);
   offset += h.node_count * sizeof(float) * 4;
+
+  // Cache surface count
+
+  for (unsigned int i = 0; i < h.model_count; i++)
+  {
+    unsigned int surface_count_cache = 0;
+    for (unsigned int j = 0; j < h.surface_count; j++)
+    {
+      if (surfaces[j].model_index == i)
+      {
+        surface_count_cache += 1;
+      }
+    }
+
+    data->models[i].surface_count_cache = surface_count_cache;
+  }
 
   // Copy surfaces
 
@@ -1571,6 +1594,9 @@ void bsp_write(bsp_data* data, char* filename)
 
   for (unsigned int i = 0; i < data->model_count; i++)
   {
+    if (data->models[i].duplicate == 1)
+      continue;
+
     fprintf(f, "g group_%s\n", data->models[i].name);
 
     char texture_name[64] = {0};
@@ -1648,6 +1674,28 @@ bsp_data* bsp_merge(unsigned int count, bsp_data** data)
 
     for (unsigned int j = 0; j < data[i]->model_count; j++)
     {
+      // Find duplicate model names
+
+      for (unsigned int i_prev = 0; i_prev < i; i_prev++)
+      {
+        for (unsigned int j_prev = 0; j_prev < data[i_prev]->model_count; j_prev++)
+        {
+          if (strcmp(data[i]->models[j].name, data[i_prev]->models[j_prev].name) == 0)
+          {
+            // Mark model with less surfaces as a duplicate
+
+            if (data[i]->models[j].surface_count_cache >= data[i_prev]->models[j_prev].surface_count_cache)
+            {
+              data[i_prev]->models[j_prev].duplicate = 1;
+            }
+            else
+            {
+              data[i]->models[j].duplicate = 1;
+            }
+          }
+        }
+      }
+
       memcpy(&new_data->models[j + model_index], &data[i]->models[j], sizeof(struct bsp_data_model));
     }
 
