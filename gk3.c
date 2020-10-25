@@ -1597,8 +1597,6 @@ void bsp_write(bsp_data* data, char* filename)
     if (data->models[i].duplicate == 1)
       continue;
 
-    fprintf(f, "g group_%s\n", data->models[i].name);
-
     char texture_name[64] = {0};
     for (unsigned int j = 0; j < data->surface_count; j++)
     {
@@ -1608,12 +1606,19 @@ void bsp_write(bsp_data* data, char* filename)
       if (data->surfaces[j].flags == 12)
         continue;
 
+      if (data->surfaces[j].flags == 999999)
+        continue;
+
       if (strncmp(texture_name, data->surfaces[j].texture_name, 64))
       {
+        fprintf(f, "g group_%s_TEX_%s # %i\n", data->models[i].name, data->surfaces[j].texture_name, j);
         fprintf(f, "usemtl group_%s\n", data->surfaces[j].texture_name);
         fprintf(m, "newmtl group_%s\n", data->surfaces[j].texture_name);
         fprintf(m, "map_Kd %s\n", data->surfaces[j].texture_name);
         strncpy(texture_name, data->surfaces[j].texture_name, 64);
+      }
+      else {
+        fprintf(f, "# g group_%s_TEX_%s # %i\n", data->models[i].name, data->surfaces[j].texture_name, j);
       }
 
       for (unsigned int k = 0; k < data->indice_count; k++)
@@ -1736,6 +1741,61 @@ bsp_data* bsp_merge(unsigned int count, bsp_data** data)
           if (new_data->indices[j].c == i2)
             new_data->indices[j].c = i;
         }
+      }
+    }
+  }
+
+  // Deduplicate surfaces
+
+  for (unsigned int i = 0; i < new_data->surface_count; i++)
+  {
+    if (i % 1000 == 0)
+    {
+      printf("Deduplicating surfaces - %i of %i\n", i, new_data->surface_count);
+    }
+
+    for (unsigned int i2 = 0; i2 < i; i2++)
+    {
+      if (strcmp(new_data->surfaces[i].texture_name, new_data->surfaces[i2].texture_name) != 0)
+        continue;
+
+      // Traverse indices (idx1/2 are indices relative to the surface)
+
+      unsigned int found_difference = 0;
+      for (unsigned int j = 0, idx1 = 0; j < new_data->indice_count; j++)
+      {
+        if (new_data->indices[j].surface_index != i)
+          continue;
+
+        idx1++;
+
+        // Look for differences
+
+        for (unsigned int j2 = 0, idx2 = 0; j2 < new_data->indice_count; j2++)
+        {
+          if (new_data->indices[j2].surface_index != i2)
+            continue;
+
+          idx2++;
+
+          if (idx1 != idx2)
+            continue;
+
+          if (new_data->indices[j].a != new_data->indices[j2].a
+            || new_data->indices[j].b != new_data->indices[j2].b
+            || new_data->indices[j].c != new_data->indices[j2].c)
+          {
+            found_difference = 1;
+            break;
+          }
+        }
+      }
+
+      // Mark as duplicate
+
+      if (found_difference == 0)
+      {
+        new_data->surfaces[i].flags = 999999;
       }
     }
   }
