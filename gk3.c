@@ -1603,9 +1603,19 @@ void bsp_write(bsp_data* data, char* filename)
       if (data->surfaces[j].model_index != i)
         continue;
 
+      // Remove invisible portals between BSPs
       if (data->surfaces[j].flags == 12)
         continue;
 
+      // // Remove invisible squares under vehicles
+      if (data->surfaces[j].flags & 1 << 6)
+        continue;
+
+      // Remove invisible squares under trees
+      if (data->surfaces[j].flags & 1 << 2)
+        continue;
+
+      // Remove duplicate geometry
       if (data->surfaces[j].flags == 999999)
         continue;
 
