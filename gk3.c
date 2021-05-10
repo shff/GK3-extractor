@@ -1570,31 +1570,101 @@ void mul_write(mul_data* data)
   }
 }
 
-void bsp_write(bsp_data* data, char* filename)
+void bsp_write(bsp_data* data, char* filename, char* model)
 {
-  mkdir(filename, S_IRWXU);
+  // Detect unused indices
 
-  char obj[64], mtl[64];
-  sprintf(obj, "%s/%s.OBJ", filename, filename);
-  sprintf(mtl, "%s/%s.MTL", filename, filename);
-
-  FILE* f = fopen(obj, "w");
-  FILE* m = fopen(mtl, "w");
-
-  fprintf(f, "mtllib %s.MTL\n", filename);
-
-  for (unsigned int i = 0; i < data->vertice_count; i++)
-    fprintf(f, "v %f %f %f\n", data->vertices[i].x / 100.f, data->vertices[i].y / 100.f, data->vertices[i].z / 100.f);
-
-  for (unsigned int i = 0; i < data->vertice_count; i++)
-    fprintf(f, "vt %f %f\n", data->coords[i].u, data->coords[i].v);
-
-  for (unsigned int i = 0; i < data->vertice_count; i++)
-    fprintf(f, "vn %f %f %f\n", data->normals[i].x, data->normals[i].y, data->normals[i].z);
+  int* used = malloc(data->vertice_count * sizeof(int));
+  memset(used, 0, data->vertice_count * sizeof(int));
 
   for (unsigned int i = 0; i < data->model_count; i++)
   {
     if (data->models[i].duplicate == 1)
+      continue;
+
+    if (model && (strcmp(data->models[i].name, model) != 0))
+      continue;
+
+    for (unsigned int j = 0; j < data->surface_count; j++)
+    {
+      if (data->surfaces[j].model_index != i)
+        continue;
+
+      // Remove invisible portals between BSPs
+      if (data->surfaces[j].flags == 12)
+        continue;
+
+      // Remove invisible squares under vehicles
+      if (data->surfaces[j].flags & 1 << 6)
+        continue;
+
+      // Remove invisible squares under trees
+      // TODO: Let's not do it for now! Apparently that removes the floor in some rooms too!
+      // if (data->surfaces[j].flags & 1 << 2)
+      //   continue;
+
+      // Remove duplicate geometry
+      if (data->surfaces[j].flags == 999999)
+        continue;
+
+      for (unsigned int k = 0; k < data->indice_count; k++)
+      {
+        if (data->indices[k].surface_index != j)
+          continue;
+
+        used[data->indices[k].a] = 1;
+        used[data->indices[k].b] = 1;
+        used[data->indices[k].c] = 1;
+      }
+    }
+  }
+
+  // Calculate index shift
+
+  int* shift = malloc(data->vertice_count * sizeof(int));
+  memset(shift, 0, data->vertice_count * sizeof(int));
+
+  for (unsigned int i = 0; i < data->vertice_count; i++)
+  {
+    if (used[i] == 1) continue;
+
+    for (unsigned int j = i + 1; j < data->vertice_count; j++)
+    {
+      shift[j]++;
+    }
+  }
+
+  // Output OBJ
+
+  mkdir(filename, S_IRWXU);
+
+  char obj[64], mtl[64];
+  sprintf(obj, "%s/%s.OBJ", filename, model ? model : filename);
+  sprintf(mtl, "%s/%s.MTL", filename, model ? model : filename);
+
+  FILE* f = fopen(obj, "w");
+  FILE* m = fopen(mtl, "w");
+
+  fprintf(f, "mtllib %s.MTL\n", model ? model : filename);
+
+  for (unsigned int i = 0; i < data->vertice_count; i++)
+    if (used[i] == 1)
+      fprintf(f, "v %f %f %f\n", data->vertices[i].x / 100.f, data->vertices[i].y / 100.f, data->vertices[i].z / 100.f);
+
+  for (unsigned int i = 0; i < data->vertice_count; i++)
+    if (used[i] == 1)
+      fprintf(f, "vt %f %f\n", data->coords[i].u, data->coords[i].v);
+
+  for (unsigned int i = 0; i < data->vertice_count; i++)
+    if (used[i] == 1)
+      fprintf(f, "vn %f %f %f\n", data->normals[i].x, data->normals[i].y, data->normals[i].z);
+
+  for (unsigned int i = 0; i < data->model_count; i++)
+  {
+    if (data->models[i].duplicate == 1)
+      continue;
+
+    if (model && strcmp(data->models[i].name, model) != 0)
       continue;
 
     char texture_name[64] = {0};
@@ -1638,12 +1708,23 @@ void bsp_write(bsp_data* data, char* filename)
           continue;
 
         fprintf(f, "f %i/%i/%i %i/%i/%i %i/%i/%i\n",
-          data->indices[k].a + 1, data->indices[k].a + 1, data->indices[k].a + 1,
-          data->indices[k].b + 1, data->indices[k].b + 1, data->indices[k].b + 1,
-          data->indices[k].c + 1, data->indices[k].c + 1, data->indices[k].c + 1);
+          data->indices[k].a + 1 - shift[data->indices[k].a],
+          data->indices[k].a + 1 - shift[data->indices[k].a],
+          data->indices[k].a + 1 - shift[data->indices[k].a],
+
+          data->indices[k].b + 1 - shift[data->indices[k].b],
+          data->indices[k].b + 1 - shift[data->indices[k].b],
+          data->indices[k].b + 1 - shift[data->indices[k].b],
+
+          data->indices[k].c + 1 - shift[data->indices[k].c],
+          data->indices[k].c + 1 - shift[data->indices[k].c],
+          data->indices[k].c + 1 - shift[data->indices[k].c]);
       }
     }
   }
+
+  free(shift);
+  free(used);
 
   fclose(m);
   fclose(f);
@@ -2218,7 +2299,7 @@ void extract(brn_data* brn, char* filename, char* prefix)
   {
     bsp_data* bsp = brn_extract(brn, filename, (handler)bsp_handler);
 
-    bsp_write(bsp, filename);
+    bsp_write(bsp, filename, NULL);
 
     for (unsigned int i = 0; i < bsp->surface_count; i++)
     {
@@ -2291,6 +2372,46 @@ void extract_multi(brn_data* brn, int count, char** filenames)
 {
   if (count == 0)
   {
+    printf("Usage: gk3 --props RC1_A.BSP\n");
+    return;
+  }
+
+  for (int i = 0; i < count; i++)
+  {
+    if (!strnstr(filenames[i], ".BSP", 40))
+    {
+      printf("Props mode only works for BPS files\n");
+      return;
+    }
+  }
+
+  bsp_data* bsps[count];
+  for (int i = 0; i < count; i++)
+  {
+    bsps[i] = brn_extract(brn, filenames[i], (handler)bsp_handler);
+  }
+
+  bsp_data* new_data = bsp_merge(count, bsps);
+  bsp_write(new_data, filenames[0], NULL);
+
+  for (int i = 0; i < count; i++)
+  {
+    for (unsigned int j = 0; j < bsps[i]->surface_count; j++)
+    {
+      extract(brn, bsps[i]->surfaces[j].texture_name, filenames[0]);
+    }
+  }
+
+  for (int i = 0; i < count; i++)
+  {
+    bsp_close(bsps[i]);
+  }
+}
+
+void extract_props(brn_data* brn, int count, char** filenames)
+{
+  if (count == 0)
+  {
     printf("Usage: gk3 --multi RC1_A.BSP RC2.BSP\n");
     return;
   }
@@ -2304,26 +2425,21 @@ void extract_multi(brn_data* brn, int count, char** filenames)
     }
   }
 
-  bsp_data* bsps[count];
   for (int i = 0; i < count; i++)
   {
-    bsps[i] = brn_extract(brn, filenames[i], (handler)bsp_handler);
-  }
+    bsp_data* bsp = brn_extract(brn, filenames[i], (handler)bsp_handler);
 
-  bsp_data* new_data = bsp_merge(count, bsps);
-  bsp_write(new_data, filenames[0]);
-
-  for (int i = 0; i < count; i++)
-  {
-    for (unsigned int j = 0; j < bsps[i]->surface_count; j++)
+    for (unsigned int j = 0; j < bsp->model_count; j++)
     {
-      extract(brn, bsps[i]->surfaces[j].texture_name, filenames[0]);
+      bsp_write(bsp, filenames[i], bsp->models[j].name);
     }
-  }
 
-  for (int i = 0; i < count; i++)
-  {
-    bsp_close(bsps[i]);
+    for (unsigned int j = 0; j < bsp->surface_count; j++)
+    {
+      extract(brn, bsp->surfaces[j].texture_name, filenames[i]);
+    }
+
+    bsp_close(bsp);
   }
 }
 
@@ -2341,6 +2457,10 @@ int main(int argc, char** argv)
   else if (strncmp(argv[1], "--multi", 7) == 0)
   {
     extract_multi(brn, argc - 2, &argv[2]);
+  }
+  else if (strncmp(argv[1], "--props", 7) == 0)
+  {
+    extract_props(brn, argc - 2, &argv[2]);
   }
   else
   {
