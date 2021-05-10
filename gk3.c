@@ -1612,8 +1612,9 @@ void bsp_write(bsp_data* data, char* filename)
         continue;
 
       // Remove invisible squares under trees
-      if (data->surfaces[j].flags & 1 << 2)
-        continue;
+      // TODO: Let's not do it for now! Apparently that removes the floor in some rooms too!
+      // if (data->surfaces[j].flags & 1 << 2)
+      //   continue;
 
       // Remove duplicate geometry
       if (data->surfaces[j].flags == 999999)
