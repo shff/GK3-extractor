@@ -309,7 +309,7 @@ typedef struct
   coord* coords;
   struct bsp_data_triangle
   {
-    unsigned short a, b, c, surface_index;
+    unsigned int a, b, c, surface_index;
   }* indices;
   struct bsp_data_model
   {
