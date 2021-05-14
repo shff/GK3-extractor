@@ -1730,7 +1730,7 @@ void bsp_write(bsp_data* data, char* filename, char* model)
   fclose(f);
 }
 
-bsp_data* bsp_merge(unsigned int count, bsp_data** data)
+bsp_data* bsp_merge(unsigned int bsp_count, bsp_data** data)
 {
   int vertice_index = 0;
   int indice_index = 0;
@@ -1740,7 +1740,7 @@ bsp_data* bsp_merge(unsigned int count, bsp_data** data)
   bsp_data* new_data = malloc(sizeof(bsp_data));
   memset(new_data, 0, sizeof(bsp_data));
 
-  for (unsigned int i = 0; i < count; i++)
+  for (unsigned int i = 0; i < bsp_count; i++)
   {
     new_data->vertice_count = vertice_index + data[i]->vertice_count;
     new_data->indice_count = indice_index + data[i]->indice_count;
@@ -1849,7 +1849,9 @@ bsp_data* bsp_merge(unsigned int count, bsp_data** data)
     for (unsigned int i2 = 0; i2 < i; i2++)
     {
       if (strcmp(new_data->surfaces[i].texture_name, new_data->surfaces[i2].texture_name) != 0)
+      {
         continue;
+      }
 
       // Traverse indices (idx1/2 are indices relative to the surface)
 
