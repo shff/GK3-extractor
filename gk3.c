@@ -1837,57 +1837,29 @@ bsp_data* bsp_merge(unsigned int bsp_count, bsp_data** data)
     }
   }
 
-  // Deduplicate surfaces
+  // Get Surface Hashes
+
+  unsigned int *hash = malloc(sizeof(unsigned int) * new_data->indice_count);
 
   for (unsigned int i = 0; i < new_data->surface_count; i++)
   {
-    if (i % 1000 == 0)
+    for (unsigned int j = 0; j < new_data->indice_count; j++)
     {
-      printf("Deduplicating surfaces - %i of %i\n", i, new_data->surface_count);
-    }
+      if (new_data->indices[j].surface_index != i)
+        continue;
 
+      unsigned int indices = new_data->indices[j].a + new_data->indices[j].b + new_data->indices[j].c;
+      hash[i] = (((hash[i] & 0xf8000000) << 5) ^ ((hash[i] & 0xf8000000) >> 27)) ^ indices;
+    }
+  }
+
+  // Mark duplicate surfaces with a flag if it has the same hash as another
+
+  for (unsigned int i = 0; i < new_data->surface_count; i++)
+  {
     for (unsigned int i2 = 0; i2 < i; i2++)
     {
-      if (strcmp(new_data->surfaces[i].texture_name, new_data->surfaces[i2].texture_name) != 0)
-      {
-        continue;
-      }
-
-      // Traverse indices (idx1/2 are indices relative to the surface)
-
-      unsigned int found_difference = 0;
-      for (unsigned int j = 0, idx1 = 0; j < new_data->indice_count; j++)
-      {
-        if (new_data->indices[j].surface_index != i)
-          continue;
-
-        idx1++;
-
-        // Look for differences
-
-        for (unsigned int j2 = 0, idx2 = 0; j2 < new_data->indice_count; j2++)
-        {
-          if (new_data->indices[j2].surface_index != i2)
-            continue;
-
-          idx2++;
-
-          if (idx1 != idx2)
-            continue;
-
-          if (new_data->indices[j].a != new_data->indices[j2].a
-            || new_data->indices[j].b != new_data->indices[j2].b
-            || new_data->indices[j].c != new_data->indices[j2].c)
-          {
-            found_difference = 1;
-            break;
-          }
-        }
-      }
-
-      // Mark as duplicate
-
-      if (found_difference == 0)
+      if (i != i2 && strcmp(new_data->surfaces[i].texture_name, new_data->surfaces[i2].texture_name) && hash[i] == hash[i2])
       {
         new_data->surfaces[i].flags = 999999;
       }
