@@ -1643,7 +1643,7 @@ void cur_close(cur_data* data)
 
 // Writers
 
-void bmp_write(bmp_data* data, char* filename, char* prefix, int color, unsigned int start, unsigned int end)
+void bmp_write(bmp_data* data, char* filename, char* prefix, int color, unsigned int start, unsigned int end, unsigned int bytes)
 {
   if (data == NULL) return;
 
@@ -1661,13 +1661,13 @@ void bmp_write(bmp_data* data, char* filename, char* prefix, int color, unsigned
   bmp_file_header h =
   {
     .magic = "BM",
-    .size = data->height * (data->width * 3 + data->width % 4) + sizeof(bmp_file_header),
+    .size = data->height * (data->width * bytes + data->width % 4) + sizeof(bmp_file_header),
     .offset = sizeof(bmp_file_header),
     .header_size = sizeof(bmp_file_header) - 14,
     .width = end == 0 ? data->width : end - start,
     .height = data->height,
     .color_planes = 1,
-    .bit_depth = 24,
+    .bit_depth = 8 * bytes,
     .compression = 0,
     .image_size = data->height * (data->width * 3)
   };
@@ -1684,6 +1684,7 @@ void bmp_write(bmp_data* data, char* filename, char* prefix, int color, unsigned
 
       if (end > 0 && (col < start || col >= end)) continue;
 
+      char a = (char)(pixel == 63519 ? 0 : 255);
       char r = (char)((pixel & 0x001f) * 8);
       char g = (char)(((pixel & 0x07e0) >> 5) * 4);
       char b = (char)(((pixel & 0xf800) >> 11) * 8);
@@ -1693,6 +1694,10 @@ void bmp_write(bmp_data* data, char* filename, char* prefix, int color, unsigned
       fwrite(&r, sizeof(char), 1, f);
       fwrite(&g, sizeof(char), 1, f);
       fwrite(&b, sizeof(char), 1, f);
+      if (bytes == 4)
+      {
+        fwrite(&a, sizeof(char), 1, f);
+      }
     }
   }
 
@@ -2456,7 +2461,7 @@ void extract(brn_data* brn, char* filename, char* prefix)
   if (strnstr(filename, ".BMP", 40))
   {
     bmp_data* bmp = brn_extract(brn, filename, (handler)bmp_handler);
-    bmp_write(bmp, filename, prefix, 1, 0, 0);
+    bmp_write(bmp, filename, prefix, 1, 0, 0, 3);
     bmp_close(bmp);
   }
   else if (strnstr(filename, ".MUL", 40))
@@ -2468,7 +2473,7 @@ void extract(brn_data* brn, char* filename, char* prefix)
     {
       char mul_filename[32];
       sprintf(mul_filename, "%u.BMP", i);
-      bmp_write(&mul->maps[i], mul_filename, filename, 0, 0, 0);
+      bmp_write(&mul->maps[i], mul_filename, filename, 0, 0, 0, 3);
     }
 
     mul_close(mul);
@@ -2564,7 +2569,7 @@ void extract(brn_data* brn, char* filename, char* prefix)
     {
       char bmp_output[32];
       sprintf(bmp_output, "%u.BMP", i);
-      bmp_write(bmp, bmp_output, bmp_file, 1, i * 40, (i + 1) * 40);
+      bmp_write(bmp, bmp_output, bmp_file, 1, i * 40, (i + 1) * 40, 3);
     }
 
     bmp_close(bmp);
