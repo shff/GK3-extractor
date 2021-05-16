@@ -1509,7 +1509,7 @@ void shp_close(shp_data* data)
 
 // Writers
 
-void bmp_write(bmp_data* data, char* filename, char* prefix)
+void bmp_write(bmp_data* data, char* filename, char* prefix, int color)
 {
   if (data == NULL) return;
 
@@ -1552,6 +1552,8 @@ void bmp_write(bmp_data* data, char* filename, char* prefix)
       char g = (char)(((pixel & 0x07e0) >> 5) * 4);
       char b = (char)(((pixel & 0xf800) >> 11) * 8);
 
+      if (!color) r = g = b = (r + g + b) / 3;
+
       fwrite(&r, sizeof(char), 1, f);
       fwrite(&g, sizeof(char), 1, f);
       fwrite(&b, sizeof(char), 1, f);
@@ -1561,13 +1563,6 @@ void bmp_write(bmp_data* data, char* filename, char* prefix)
   // Close File
 
   fclose(f);
-}
-
-void mul_write(mul_data* data)
-{
-  for (unsigned int i = 0; i < data->count; i++)
-  {
-  }
 }
 
 void bsp_write(bsp_data* data, char* filename, char* model)
@@ -2260,13 +2255,21 @@ void extract(brn_data* brn, char* filename, char* prefix)
   if (strnstr(filename, ".BMP", 40))
   {
     bmp_data* bmp = brn_extract(brn, filename, (handler)bmp_handler);
-    bmp_write(bmp, filename, prefix);
+    bmp_write(bmp, filename, prefix, 1);
     bmp_close(bmp);
   }
   else if (strnstr(filename, ".MUL", 40))
   {
     mul_data* mul = brn_extract(brn, filename, (handler)mul_handler);
-    mul_write(mul);
+
+    mkdir(filename, S_IRWXU);
+    for (unsigned int i = 0; i < mul->count; i++)
+    {
+      char mul_filename[32];
+      sprintf(mul_filename, "%u.BMP", i);
+      bmp_write(&mul->maps[i], mul_filename, filename, 0);
+    }
+
     mul_close(mul);
   }
   else if (strnstr(filename, ".BSP", 40))
