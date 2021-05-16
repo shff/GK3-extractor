@@ -410,6 +410,11 @@ typedef struct
   }* functions;
 } shp_data;
 
+typedef struct
+{
+  char bsp[64];
+} scn_data;
+
 // Utility Functions
 
 float S1I7F8(unsigned short n)
@@ -1507,6 +1512,40 @@ void shp_close(shp_data* data)
   free(data);
 }
 
+void* scn_handler(char* content)
+{
+  scn_data* data = malloc(sizeof(scn_data));
+  memset(data, 0, sizeof(scn_data));
+
+  // Split line by line
+  unsigned int mode = 0;
+  char current_light[64];
+  for(char *t = content, *s, *line; (line = strtok_r(t, "\n\r", &s)); t = NULL)
+  {
+    line[strcspn(line, "/")] = 0;               // Remove comments
+    for(char* m = s - 2; *--m == 10; *m = 0);   // Right trim
+    for(; *line && *line == 10; line++);        // Left trim
+    if (!*line) continue;                       // Skip blank lines
+
+    if (strncmp(line, "[MODELS]", 8) == 0)
+      mode = 1;
+    else if (strncmp(line, "[LIGHTS]", 8) == 0)
+      mode = 2;
+    else if (strncmp(line, "[Skybox]", 8) == 0)
+      mode = 3;
+    else if (strncmp(line, "[Light_", 7) == 0)
+      mode = 4, strncpy(current_light, line + 7, strcspn(line + 7, "]"));
+    else if (mode == 0 && strncmp(line, "bsp=", 4) == 0)
+    {
+      for(int i = 0; (line[i] = (char)toupper(line[i])); i++);
+      strncpy(data->bsp, line + 4, 64);
+      sprintf(data->bsp, "%s.BSP", data->bsp);
+    }
+  }
+
+  return data;
+}
+
 // Writers
 
 void bmp_write(bmp_data* data, char* filename, char* prefix, int color)
@@ -2338,6 +2377,13 @@ void extract(brn_data* brn, char* filename, char* prefix)
     shp_data* shp = brn_extract(brn, filename, (handler)shp_handler);
     shp_write(shp, txt);
     shp_close(shp);
+  }
+  else if (strnstr(filename, ".SCN", 40))
+  {
+    brn_extract(brn, filename, 0);
+
+    scn_data* scn = brn_extract(brn, filename, scn_handler);
+    extract(brn, scn->bsp, NULL);
   }
   else
   {
