@@ -1512,7 +1512,7 @@ void shp_close(shp_data* data)
   free(data);
 }
 
-void* scn_handler(char* content)
+scn_data* scn_handler(char* content)
 {
   scn_data* data = malloc(sizeof(scn_data));
   memset(data, 0, sizeof(scn_data));
@@ -1544,6 +1544,11 @@ void* scn_handler(char* content)
   }
 
   return data;
+}
+
+void scn_close(scn_data* data)
+{
+  free(data);
 }
 
 // Writers
@@ -2382,8 +2387,9 @@ void extract(brn_data* brn, char* filename, char* prefix)
   {
     brn_extract(brn, filename, 0);
 
-    scn_data* scn = brn_extract(brn, filename, scn_handler);
+    scn_data* scn = brn_extract(brn, filename, (handler)scn_handler);
     extract(brn, scn->bsp, NULL);
+    scn_close(scn);
   }
   else
   {
