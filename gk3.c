@@ -2485,6 +2485,16 @@ int main(int argc, char** argv)
   {
     extract_props(brn, argc - 2, &argv[2]);
   }
+  else if (strncmp(argv[1], "--find", 6) == 0)
+  {
+    for (unsigned int i = 0; i < brn->count; i++)
+    {
+      if (strstr(brn->files[i].name, argv[2]) != 0)
+      {
+        extract(brn, brn->files[i].name, NULL);
+      }
+    }
+  }
   else
   {
     for (int i = 1; i < argc; i++)
