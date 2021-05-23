@@ -433,6 +433,15 @@ typedef struct {
   char alpha_channel[64];
 } cur_data;
 
+typedef struct
+{
+  char scene[64];
+  unsigned int model_count;
+  struct sif_model {
+    char name[64];
+  }* models;
+} sif_data;
+
 // Utility Functions
 
 float S1I7F8(unsigned short n)
@@ -1518,6 +1527,47 @@ void shp_close(shp_data* data)
   free(data);
 }
 
+sif_data* sif_handler(char* content)
+{
+  sif_data* data = malloc(sizeof(sif_data));
+  memset(data, 0, sizeof(sif_data));
+
+  // Split line by line
+  unsigned int mode = 0;
+  for(char *t = content, *s, *line; (line = strtok_r(t, "\n\r", &s)); t = NULL)
+  {
+    line[strcspn(line, "/")] = 0;                            // Remove comments
+    // for(char* m = s - 2; *--m == 10; *m = 0);                // Right trim
+    for(; *line && *line == 10; line++);                     // Left trim
+    for(; *line && *line == 32; line++);                     // Left trim
+    if (!*line) continue;                                    // Skip blank lines
+    for(int i = 0; (line[i] = (char)toupper(line[i])); i++); // Uppercase
+
+    if (strncmp(line, "[GENERAL", 8) == 0)
+      mode = 0;
+    else if (strncmp(line, "[MODELS", 7) == 0)
+      mode = 1;
+    else if (strncmp(line, "[", 1) == 0)
+      mode = 9999;
+    else if (mode == 0 && strncmp(line, "SCENE=", 6) == 0)
+      sprintf(data->scene, "%s.SCN", line + 6);
+    else if (mode == 1 && strncmp(line, "MODEL=", 6) == 0 && strstr(line, "TYPE=PROP") != 0)
+    {
+      line[strcspn(line, ",")] = 0;
+      data->model_count++;
+      data->models = realloc(data->models, sizeof(struct sif_model) * data->model_count);
+      sprintf(data->models[data->model_count - 1].name, "%s.MOD", line + 6);
+    }
+  }
+
+  return data;
+}
+
+void sif_close(sif_data* data)
+{
+  free(data);
+}
+
 scn_data* scn_handler(char* content)
 {
   scn_data* data = malloc(sizeof(scn_data));
@@ -1541,7 +1591,7 @@ scn_data* scn_handler(char* content)
       mode = 3;
     else if (strncmp(line, "[Light_", 7) == 0)
       mode = 4, strncpy(current_light, line + 7, strcspn(line + 7, "]"));
-    else if (mode == 0 && strncmp(line, "bsp=", 4) == 0)
+    else if (mode == 0 && (strncmp(line, "bsp=", 4) == 0 || strncmp(line, "BSP=", 4) == 0))
     {
       for(int i = 0; (line[i] = (char)toupper(line[i])); i++);
       strncpy(data->bsp, line + 4, 64);
@@ -2519,6 +2569,57 @@ void extract(brn_data* brn, char* filename, char* prefix)
 
     bmp_close(bmp);
     cur_close(cur);
+  }
+  else if (strnstr(filename, ".SIF", 40))
+  {
+    brn_extract(brn, filename, 0);
+
+    sif_data* sif = brn_extract(brn, filename, (handler)sif_handler);
+    scn_data* scn = brn_extract(brn, sif->scene, (handler)scn_handler);
+    brn_extract(brn, sif->scene, 0);
+
+    mkdir(scn->bsp, S_IRWXU);
+    bsp_data* bsp = brn_extract(brn, scn->bsp, (handler)bsp_handler);
+
+    mod_data* mods[sif->model_count];
+    for (unsigned int i = 0; i < sif->model_count; i++)
+    {
+      mods[i] = brn_extract(brn, sif->models[i].name, (handler)mod_handler);
+    }
+
+    // Merge BSP and MODs
+
+    bsp_data* new_data = bsp_merge(1, &bsp, sif->model_count, mods);
+    bsp_write(new_data, scn->bsp, NULL);
+
+    // Extract Textures
+
+    for (unsigned int j = 0; j < bsp->surface_count; j++)
+    {
+      extract(brn, bsp->surfaces[j].texture_name, scn->bsp);
+    }
+
+    for (unsigned int i = 0; i < sif->model_count; i++)
+    {
+      for (unsigned int j = 0; j < mods[i]->mesh_count; j++)
+      {
+        for (unsigned int k = 0; k < mods[i]->meshes[j].section_count; k++)
+        {
+          if (mods[i]->meshes[j].sections[k].texture_file[0] != 0)
+          {
+            extract(brn, mods[i]->meshes[j].sections[k].texture_file, scn->bsp);
+          }
+        }
+      }
+    }
+
+    for (unsigned int i = 0; i < sif->model_count; i++)
+    {
+      mod_close(mods[i]);
+    }
+    bsp_close(bsp);
+    scn_close(scn);
+    sif_close(sif);
   }
   else
   {
