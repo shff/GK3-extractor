@@ -2438,6 +2438,8 @@ void extract(brn_data* brn, char* filename, char* prefix)
   }
   else if (strnstr(filename, ".CUR", 40))
   {
+    brn_extract(brn, filename, 0);
+
     char bmp_file[64];
     strncpy(bmp_file, filename, 64);
     strncpy(bmp_file + strlen(bmp_file) - 4, ".BMP", 4);
@@ -2445,12 +2447,12 @@ void extract(brn_data* brn, char* filename, char* prefix)
     cur_data* cur = brn_extract(brn, filename, (handler)cur_handler);
     bmp_data* bmp = brn_extract(brn, bmp_file, (handler)bmp_handler);
 
-    mkdir(filename, S_IRWXU);
+    mkdir(bmp_file, S_IRWXU);
     for (unsigned int i = 0; i < cur->frame_count; i++)
     {
       char bmp_output[32];
-      sprintf(bmp_output, "%u-.BMP", i);
-      bmp_write(bmp, bmp_output, filename, 1, i * 40, (i + 1) * 40);
+      sprintf(bmp_output, "%u.BMP", i);
+      bmp_write(bmp, bmp_output, bmp_file, 1, i * 40, (i + 1) * 40);
     }
 
     bmp_close(bmp);
