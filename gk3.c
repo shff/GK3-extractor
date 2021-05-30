@@ -2409,7 +2409,7 @@ void extract(brn_data* brn, char* filename, char* prefix)
     {
       for (unsigned int j = 0; j < mod->meshes[i].section_count; j++)
       {
-        if (mod->meshes[i].sections[j].texture_file[0] == 0)
+        if (mod->meshes[i].sections[j].texture_file[0] == 0 || mod->meshes[i].sections[j].texture_file[0] == '.')
           continue;
 
         extract(brn, mod->meshes[i].sections[j].texture_file, filename);
