@@ -2419,7 +2419,7 @@ void extract(brn_data* brn, char* filename, char* prefix)
     mod_close(mod);
     act_close(act);
   }
-  else if (strnstr(filename, ".SHP", 40))
+  else if (strnstr(filename, ".SHP", 40) && strnstr(filename, "GK3.SHP", 40) == 0)
   {
     char txt[64];
     sprintf(txt, "%s.TXT", filename);
