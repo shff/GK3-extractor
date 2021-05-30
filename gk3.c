@@ -415,6 +415,15 @@ typedef struct
   char bsp[64];
 } scn_data;
 
+typedef struct {
+  unsigned int frame_count;
+  unsigned int frame_rate;
+  unsigned int fade_cursor_delay;
+  unsigned int allow_fading;
+  char sprite_name[64];
+  char alpha_channel[64];
+} cur_data;
+
 // Utility Functions
 
 float S1I7F8(unsigned short n)
@@ -1551,9 +1560,43 @@ void scn_close(scn_data* data)
   free(data);
 }
 
+cur_data* cur_handler(char* content)
+{
+  cur_data* data = malloc(sizeof(cur_data));
+  memset(data, 0, sizeof(cur_data));
+  data->frame_count = 1;
+
+  for(char *t = content, *s, *line; (line = strtok_r(t, "\n\r", &s)); t = NULL)
+  {
+    line[strcspn(line, ";")] = 0;               // Remove comments
+    if (!*line) continue;                       // Skip blank lines
+
+    // TODO: Hotspot, Transparency
+    if (strncmp("Allow Fading=yes", line, 16) == 0)
+      data->allow_fading = 1;
+    else if (strncmp("Alpha Channel", line, 13) == 0)
+      strncpy(data->alpha_channel, line + 14, 64);
+    else if (strncmp("Sprite Name", line, 11) == 0)
+      strncpy(data->sprite_name, line + 12, 64);
+    else if (strncmp("Frame Count", line, 11) == 0)
+      data->frame_count = atoi(line + 12);
+    else if (strncmp("Frame Rate", line, 10) == 0)
+      data->frame_rate = atoi(line + 11);
+    else if (strncmp("Fade Cursor Delay", line, 17) == 0)
+      data->fade_cursor_delay = atoi(line + 18);
+  }
+
+  return data;
+}
+
+void cur_close(cur_data* data)
+{
+  free(data);
+}
+
 // Writers
 
-void bmp_write(bmp_data* data, char* filename, char* prefix, int color)
+void bmp_write(bmp_data* data, char* filename, char* prefix, int color, unsigned int start, unsigned int end)
 {
   if (data == NULL) return;
 
@@ -1574,7 +1617,7 @@ void bmp_write(bmp_data* data, char* filename, char* prefix, int color)
     .size = data->height * (data->width * 3 + data->width % 4) + sizeof(bmp_file_header),
     .offset = sizeof(bmp_file_header),
     .header_size = sizeof(bmp_file_header) - 14,
-    .width = data->width,
+    .width = end == 0 ? data->width : end - start,
     .height = data->height,
     .color_planes = 1,
     .bit_depth = 24,
@@ -1591,6 +1634,8 @@ void bmp_write(bmp_data* data, char* filename, char* prefix, int color)
     for (unsigned int col = 0; col < data->width; col++)
     {
       unsigned short pixel = data->content[(unsigned int)row * (data->width + (data->width % 4) % 2) + col];
+
+      if (end > 0 && (col < start || col >= end)) continue;
 
       char r = (char)((pixel & 0x001f) * 8);
       char g = (char)(((pixel & 0x07e0) >> 5) * 4);
@@ -2299,7 +2344,7 @@ void extract(brn_data* brn, char* filename, char* prefix)
   if (strnstr(filename, ".BMP", 40))
   {
     bmp_data* bmp = brn_extract(brn, filename, (handler)bmp_handler);
-    bmp_write(bmp, filename, prefix, 1);
+    bmp_write(bmp, filename, prefix, 1, 0, 0);
     bmp_close(bmp);
   }
   else if (strnstr(filename, ".MUL", 40))
@@ -2311,7 +2356,7 @@ void extract(brn_data* brn, char* filename, char* prefix)
     {
       char mul_filename[32];
       sprintf(mul_filename, "%u.BMP", i);
-      bmp_write(&mul->maps[i], mul_filename, filename, 0);
+      bmp_write(&mul->maps[i], mul_filename, filename, 0, 0, 0);
     }
 
     mul_close(mul);
@@ -2390,6 +2435,26 @@ void extract(brn_data* brn, char* filename, char* prefix)
     scn_data* scn = brn_extract(brn, filename, (handler)scn_handler);
     extract(brn, scn->bsp, NULL);
     scn_close(scn);
+  }
+  else if (strnstr(filename, ".CUR", 40))
+  {
+    char bmp_file[64];
+    strncpy(bmp_file, filename, 64);
+    strncpy(bmp_file + strlen(bmp_file) - 4, ".BMP", 4);
+
+    cur_data* cur = brn_extract(brn, filename, (handler)cur_handler);
+    bmp_data* bmp = brn_extract(brn, bmp_file, (handler)bmp_handler);
+
+    mkdir(filename, S_IRWXU);
+    for (unsigned int i = 0; i < cur->frame_count; i++)
+    {
+      char bmp_output[32];
+      sprintf(bmp_output, "%u-.BMP", i);
+      bmp_write(bmp, bmp_output, filename, 1, i * 40, (i + 1) * 40);
+    }
+
+    bmp_close(bmp);
+    cur_close(cur);
   }
   else
   {
