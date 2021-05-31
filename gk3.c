@@ -103,6 +103,14 @@ typedef struct
   int flags;
 } bsp_surface;
 
+typedef struct
+{
+  unsigned short index_offset;
+  unsigned short unknown1;
+  unsigned short index_count;
+  unsigned short surface_index;
+} bsp_polygon;
+
 typedef struct __attribute__((packed))
 {
   unsigned short a, b, c;
@@ -938,6 +946,8 @@ bsp_data* bsp_handler(char* content)
   // Prepare Structures
 
   bsp_surface surfaces[h.surface_count];
+  bsp_polygon polygons[h.polygon_count];
+  unsigned short vertice_indices[h.vertice_indice_count];
 
   data->models = malloc(sizeof(struct bsp_data_model) * h.model_count);
   data->surfaces = malloc(sizeof(struct bsp_data_surface) * h.surface_count);
@@ -945,7 +955,7 @@ bsp_data* bsp_handler(char* content)
   data->normals = malloc(sizeof(vertice) * h.vertice_count);
   data->coords = malloc(sizeof(coord) * h.texture_coord_count);
 
-  // Load contents - Ignore BSP-tree information
+  // Load BSP Contents
 
   for (unsigned int i = 0; i < h.model_count; i++)
   {
@@ -955,11 +965,14 @@ bsp_data* bsp_handler(char* content)
 
   freadb(&surfaces, sizeof(bsp_surface), h.surface_count, content);
   offset += h.node_count * sizeof(unsigned short) * 8;
-  offset += h.polygon_count * sizeof(unsigned short) * 4;
+  freadb(&polygons, sizeof(bsp_polygon), h.polygon_count, content);
   offset += h.plane_count * sizeof(float) * 4;
   freadb(data->vertices, sizeof(vertice), h.vertice_count, content);
   freadb(data->coords, sizeof(coord), h.texture_coord_count, content);
-  offset += h.vertice_indice_count * sizeof(unsigned short);
+  freadb(&vertice_indices, sizeof(unsigned short), h.vertice_indice_count, content);
+
+  // Ignore extra BSP data.
+
   offset += h.texture_indice_count * sizeof(unsigned short);
   offset += h.node_count * sizeof(float) * 4;
 
@@ -1004,50 +1017,33 @@ bsp_data* bsp_handler(char* content)
     data->vertices[i].z = -data->vertices[i].z;
   }
 
-  // Read Non-BSP Indexes and Triangles
+  // Convert BSP triangle fans to regular triangles
 
   unsigned int capacity = 0;
   data->indice_count = 0;
 
-  if (h.version >= 514)
+  for (unsigned int i = 0; i < h.polygon_count; i++)
   {
-    for (unsigned short i = 0; i < h.surface_count; i++)
+    unsigned int a = polygons[i].index_offset;
+    unsigned int b = polygons[i].index_offset + 1;
+    for (unsigned j = 2; j < polygons[i].index_count; j++)
     {
-      bsp_surface_ext e;
-      freadb(&e, sizeof(bsp_surface_ext), 1, content);
+      if (data->indice_count + 1 > capacity)
+        data->indices = realloc(data->indices, sizeof(struct bsp_data_triangle) * (capacity += 512));
 
-      unsigned short indices[e.indice_count];
-      bsp_triangle triangles[e.triangle_count];
-      freadb(&indices, sizeof(unsigned short), e.indice_count, content);
-      freadb(&triangles, sizeof(bsp_triangle), e.triangle_count, content);
+      unsigned int c = polygons[i].index_offset + j;
 
-      for (unsigned int j = 0; j < e.triangle_count; j++)
-      {
-        if (data->indice_count + 1 > capacity)
-          data->indices = realloc(data->indices, sizeof(struct bsp_data_triangle) * (capacity += 512));
+      data->indices[data->indice_count].a = vertice_indices[c];
+      data->indices[data->indice_count].b = vertice_indices[b];
+      data->indices[data->indice_count].c = vertice_indices[a];
+      data->indices[data->indice_count].surface_index = polygons[i].surface_index;
 
-        // Vertice order is inverted in GK3
-        data->indices[data->indice_count].a = indices[triangles[j].c];
-        data->indices[data->indice_count].b = indices[triangles[j].b];
-        data->indices[data->indice_count].c = indices[triangles[j].a];
-        data->indices[data->indice_count].surface_index = i;
-
-        // Calculate Normals
-
-        vertice normal = get_normal(
-          data->vertices[indices[triangles[j].a]],
-          data->vertices[indices[triangles[j].b]],
-          data->vertices[indices[triangles[j].c]]);
-        data->normals[indices[triangles[j].a]] = normal;
-        data->normals[indices[triangles[j].b]] = normal;
-        data->normals[indices[triangles[j].c]] = normal;
-
-        data->indice_count++;
-      }
+      data->indice_count++;
+      b = c;
     }
   }
 
-  return (void*)data;
+  return data;
 }
 
 void bsp_close(bsp_data* data)
