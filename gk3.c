@@ -1733,7 +1733,7 @@ void bsp_write(bsp_data* data, char* filename, char* model)
 
   for (unsigned int i = 0; i < data->vertice_count; i++)
     if (used[i] == 1)
-      fprintf(f, "v %f %f %f\n", data->vertices[i].x / 100.f, data->vertices[i].y / 100.f, data->vertices[i].z / 100.f);
+      fprintf(f, "v %f %f %f\n", data->vertices[i].x, data->vertices[i].y, data->vertices[i].z);
 
   for (unsigned int i = 0; i < data->vertice_count; i++)
     if (used[i] == 1)
