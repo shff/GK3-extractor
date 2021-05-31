@@ -457,9 +457,9 @@ vertice get_normal(vertice a, vertice b, vertice c)
 vertice transform(float m[12], vertice v)
 {
   vertice newv;
-  newv.x = m[0] * v.x + m[3] * v.y + m[6] * v.z + m[9];
-  newv.y = m[1] * v.x + m[4] * v.y + m[7] * v.z + m[10];
-  newv.z = m[2] * v.x + m[5] * v.y + m[8] * v.z + m[11];
+  newv.x = m[0] * v.x + m[3] * v.y + m[6] * v.z;
+  newv.y = m[1] * v.x + m[4] * v.y + m[7] * v.z;
+  newv.z = m[2] * v.x + m[5] * v.y + m[8] * v.z;
   return newv;
 }
 
