@@ -465,9 +465,9 @@ vertice get_normal(vertice a, vertice b, vertice c)
 vertice transform(float m[12], vertice v)
 {
   vertice newv;
-  newv.x = m[0] * v.x + m[3] * v.y + m[6] * v.z;
-  newv.y = m[1] * v.x + m[4] * v.y + m[7] * v.z;
-  newv.z = m[2] * v.x + m[5] * v.y + m[8] * v.z;
+  newv.x = m[0] * v.x + m[3] * v.y + m[6] * v.z + m[9];
+  newv.y = m[1] * v.x + m[4] * v.y + m[7] * v.z + m[10];
+  newv.z = m[2] * v.x + m[5] * v.y + m[8] * v.z + m[11];
   return newv;
 }
 
@@ -1967,7 +1967,7 @@ void mod_write(mod_data* data, char* filename, char* prefix)
       for (unsigned int k = 0; k < data->meshes[i].sections[j].vertice_count; k++)
       {
         vertice v = transform(data->meshes[i].transform, data->meshes[i].sections[j].vertices[k]);
-        fprintf(f, "v %f %f %f\n", v.x, v.y, v.z);
+        fprintf(f, "v %f %f %f\n", v.x, v.y, -v.z);
       }
       for (unsigned int k = 0; k < data->meshes[i].sections[j].vertice_count; k++)
       {
@@ -2001,9 +2001,9 @@ void mod_write(mod_data* data, char* filename, char* prefix)
       {
         triangle t = data->meshes[i].sections[j].triangles[k];
         fprintf(f, "f %i/%i/%i %i/%i/%i %i/%i/%i\n",
-          t.a + offset, t.a + offset, t.a + offset,
+          t.c + offset, t.c + offset, t.c + offset,
           t.b + offset, t.b + offset, t.b + offset,
-          t.c + offset, t.c + offset, t.c + offset);
+          t.a + offset, t.a + offset, t.a + offset);
       }
 
       counter++;
