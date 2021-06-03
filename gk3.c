@@ -336,6 +336,7 @@ typedef struct
 typedef struct
 {
   unsigned int mesh_count;
+  char mod_name[32];
   struct mod_data_mesh
   {
     unsigned int section_count;
@@ -1810,7 +1811,7 @@ void bsp_write(bsp_data* data, char* filename, char* model)
   fclose(f);
 }
 
-bsp_data* bsp_merge(unsigned int bsp_count, bsp_data** data)
+bsp_data* bsp_merge(unsigned int bsp_count, bsp_data** data, unsigned int mod_count, mod_data** mods)
 {
   int vertice_index = 0;
   int indice_index = 0;
@@ -1885,6 +1886,59 @@ bsp_data* bsp_merge(unsigned int bsp_count, bsp_data** data)
     indice_index += data[i]->indice_count;
     model_index += data[i]->model_count;
     surface_index += data[i]->surface_count;
+  }
+
+  for (unsigned int i = 0; i < mod_count; i++)
+  {
+    for (unsigned int j = 0; j < mods[i]->mesh_count; j++)
+    {
+      new_data->model_count = model_index + 1;
+      new_data->models = realloc(new_data->models, sizeof(struct bsp_data_model) * new_data->model_count);
+
+      memset(&new_data->models[model_index], 0, sizeof(struct bsp_data_model));
+      strncpy(new_data->models[model_index].name, mods[i]->mod_name, 32);
+
+      for (unsigned int k = 0; k < mods[i]->meshes[j].section_count; k++)
+      {
+        new_data->vertice_count = vertice_index + mods[i]->meshes[j].sections[k].vertice_count;
+        new_data->indice_count = indice_index + mods[i]->meshes[j].sections[k].triangle_count;
+        new_data->surface_count = surface_index + 1;
+
+        new_data->vertices = realloc(new_data->vertices, sizeof(vertice) * new_data->vertice_count);
+        new_data->coords = realloc(new_data->coords, sizeof(coord) * new_data->vertice_count);
+        new_data->normals = realloc(new_data->normals, sizeof(vertice) * new_data->vertice_count);
+        new_data->indices = realloc(new_data->indices, sizeof(struct bsp_data_triangle) * new_data->indice_count);
+        new_data->surfaces = realloc(new_data->surfaces, sizeof(struct bsp_data_surface) * new_data->surface_count);
+
+        memset(&new_data->surfaces[surface_index], 0, sizeof(struct bsp_data_surface));
+        strcpy(new_data->surfaces[surface_index].texture_name, mods[i]->meshes[j].sections[k].texture_file);
+        new_data->surfaces[surface_index].model_index = model_index;
+
+        for (unsigned int l = 0; l < mods[i]->meshes[j].sections[k].vertice_count; l++)
+        {
+          vertice v = transform(mods[i]->meshes[j].transform, mods[i]->meshes[j].sections[k].vertices[l]);
+          v.z = -v.z;
+
+          new_data->vertices[l + vertice_index] = v;
+          new_data->coords[l + vertice_index] = mods[i]->meshes[j].sections[k].coords[l];
+          new_data->normals[l + vertice_index] = mods[i]->meshes[j].sections[k].normals[l];
+        }
+
+        for (unsigned int l = 0; l < mods[i]->meshes[j].sections[k].triangle_count; l++)
+        {
+          new_data->indices[l + indice_index].a = mods[i]->meshes[j].sections[k].triangles[l].c + vertice_index;
+          new_data->indices[l + indice_index].b = mods[i]->meshes[j].sections[k].triangles[l].b + vertice_index;
+          new_data->indices[l + indice_index].c = mods[i]->meshes[j].sections[k].triangles[l].a + vertice_index;
+          new_data->indices[l + indice_index].surface_index = surface_index;
+        }
+
+        vertice_index += mods[i]->meshes[j].sections[k].vertice_count;
+        indice_index += mods[i]->meshes[j].sections[k].triangle_count;
+        surface_index += 1;
+      }
+
+      model_index += 1;
+    }
   }
 
   // Deduplicate indices
@@ -2480,25 +2534,57 @@ void extract_multi(brn_data* brn, int count, char** filenames)
     return;
   }
 
+  int bsp_count = 0;
+  int mod_count = 0;
   for (int i = 0; i < count; i++)
   {
-    if (!strnstr(filenames[i], ".BSP", 40))
+    if (strnstr(filenames[i], ".BSP", 40))
+    {
+      bsp_count++;
+    }
+    else if (strnstr(filenames[i], ".MOD", 40))
+    {
+      mod_count++;
+    }
+    else
     {
       printf("Props mode only works for BPS files\n");
       return;
     }
   }
 
-  bsp_data* bsps[count];
-  for (int i = 0; i < count; i++)
+  // Parse BSPs
+
+  bsp_data* bsps[bsp_count];
+  for (int i = 0, i2 = 0; i < count; i++)
   {
-    bsps[i] = brn_extract(brn, filenames[i], (handler)bsp_handler);
+    if (strnstr(filenames[i], ".BSP", 40))
+    {
+      bsps[i2++] = brn_extract(brn, filenames[i], (handler)bsp_handler);
+    }
   }
 
-  bsp_data* new_data = bsp_merge(count, bsps);
+  // Parse MODs
+
+  mod_data* mods[mod_count];
+  for (int i = 0, i2 = 0; i < count; i++)
+  {
+    if (strnstr(filenames[i], ".MOD", 40))
+    {
+      mods[i2] = brn_extract(brn, filenames[i], (handler)mod_handler);
+      strncpy(mods[i2]->mod_name, filenames[i], 32);
+      i2++;
+    }
+  }
+
+  // Merge
+
+  bsp_data* new_data = bsp_merge(bsp_count, bsps, mod_count, mods);
   bsp_write(new_data, filenames[0], NULL);
 
-  for (int i = 0; i < count; i++)
+  // Extract Textures
+
+  for (int i = 0; i < bsp_count; i++)
   {
     for (unsigned int j = 0; j < bsps[i]->surface_count; j++)
     {
@@ -2506,9 +2592,32 @@ void extract_multi(brn_data* brn, int count, char** filenames)
     }
   }
 
-  for (int i = 0; i < count; i++)
+  for (int i = 0; i < mod_count; i++)
+  {
+    for (unsigned int j = 0; j < mods[i]->mesh_count; j++)
+    {
+      for (unsigned int k = 0; k < mods[i]->meshes[j].section_count; k++)
+      {
+        if (mods[i]->meshes[j].sections[k].texture_file[0] != 0)
+        {
+          extract(brn, mods[i]->meshes[j].sections[k].texture_file, filenames[0]);
+        }
+      }
+    }
+  }
+
+  // Close BSPs
+
+  for (int i = 0; i < bsp_count; i++)
   {
     bsp_close(bsps[i]);
+  }
+
+  // Close MODs
+
+  for (int i = 0; i < mod_count; i++)
+  {
+    mod_close(mods[i]);
   }
 }
 
@@ -2524,7 +2633,7 @@ void extract_props(brn_data* brn, int count, char** filenames)
   {
     if (!strnstr(filenames[i], ".BSP", 40))
     {
-      printf("Multi mode only works for BPS files\n");
+      printf("Multi mode only works for BPS and MOD files\n");
       return;
     }
   }
