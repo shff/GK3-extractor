@@ -1969,6 +1969,12 @@ void mod_write(mod_data* data, char* filename, char* prefix)
         vertice v = transform(data->meshes[i].transform, data->meshes[i].sections[j].vertices[k]);
         fprintf(f, "v %f %f %f\n", v.x, v.y, -v.z);
       }
+    }
+  }
+  for (unsigned int i = 0; i < data->mesh_count; i++)
+  {
+    for (unsigned int j = 0; j < data->meshes[i].section_count; j++)
+    {
       for (unsigned int k = 0; k < data->meshes[i].sections[j].vertice_count; k++)
       {
         fprintf(f, "vn %f %f %f\n",
@@ -1976,6 +1982,12 @@ void mod_write(mod_data* data, char* filename, char* prefix)
           data->meshes[i].sections[j].normals[k].y,
           data->meshes[i].sections[j].normals[k].z);
       }
+    }
+  }
+  for (unsigned int i = 0; i < data->mesh_count; i++)
+  {
+    for (unsigned int j = 0; j < data->meshes[i].section_count; j++)
+    {
       for (unsigned int k = 0; k < data->meshes[i].sections[j].vertice_count; k++)
       {
         fprintf(f, "vt %f %f\n",
