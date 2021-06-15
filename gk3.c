@@ -421,6 +421,12 @@ typedef struct
 
 typedef struct
 {
+  unsigned int frames;
+  char sound[64];
+} yak_data;
+
+typedef struct
+{
   char bsp[64];
 } scn_data;
 
@@ -762,7 +768,7 @@ brn_data* brn_open(char* filename, int is_main)
   return data;
 }
 
-void* brn_extract(brn_data* data, char* filename, void*(file_handler)(char*))
+void* brn_extract(brn_data* data, char* filename, void*(file_handler)(char*), char* suffix)
 {
   // Locate File
 
@@ -815,6 +821,15 @@ void* brn_extract(brn_data* data, char* filename, void*(file_handler)(char*))
       if (file_handler)
       {
         ret = file_handler(buffer);
+      }
+      else if (suffix)
+      {
+        char filename2[32];
+        sprintf(filename2, "%s.%s", filename, suffix);
+
+        FILE* out = fopen(filename2, "w");
+        fwrite(buffer, size, 1, out);
+        fclose(out);
       }
       else
       {
@@ -1524,6 +1539,48 @@ void shp_close(shp_data* data)
   free(data->consts);
   free(data->functions);
   free(data->variables);
+  free(data);
+}
+
+yak_data* yak_handler(char* content)
+{
+  yak_data* data = malloc(sizeof(yak_data));
+  memset(data, 0, sizeof(yak_data));
+
+  // Split line by line
+  unsigned int mode = 0;
+  for(char *t = content, *s, *line; (line = strtok_r(t, "\n\r", &s)); t = NULL)
+  {
+    line[strcspn(line, "/")] = 0;               // Remove comments
+    // for(char* m = s - 2; *--m == 10; *m = 0);   // Right trim
+    for(; *line && *line == 10; line++);        // Left trim
+    if (!*line) continue;                       // Skip blank lines
+
+    if (strncmp(line, "[HEADER]", 8) == 0)
+      mode = 1;
+    else if (strncmp(line, "[SOUNDS]", 8) == 0)
+      mode = 2;
+    else if (strncmp(line, "[GK3]", 5) == 0)
+      mode = 3;
+    else if (strncmp(line, "[OPTIONS]", 9) == 0)
+      mode = 3;
+    else if (mode == 1)
+      data->frames = atoi(line);
+    else if (mode == 2)
+      mode = 21;
+    else if (mode == 21 && strncmp(line, "0,", 2) == 0)
+    {
+      line += 2;
+      line[strcspn(line, ",")] = 0;
+      strncpy(data->sound, line, 64);
+    }
+  }
+
+  return data;
+}
+
+void yak_close(yak_data* data)
+{
   free(data);
 }
 
@@ -2457,16 +2514,16 @@ void extract(brn_data* brn, char* filename, char* prefix)
     return;
   }
 
-  printf("Extracting %s\n", filename2);
+  // printf("Extracting %s\n", filename2);
   if (strnstr(filename, ".BMP", 40))
   {
-    bmp_data* bmp = brn_extract(brn, filename, (handler)bmp_handler);
+    bmp_data* bmp = brn_extract(brn, filename, (handler)bmp_handler, 0);
     bmp_write(bmp, filename, prefix, 1, 0, 0, 3);
     bmp_close(bmp);
   }
   else if (strnstr(filename, ".MUL", 40))
   {
-    mul_data* mul = brn_extract(brn, filename, (handler)mul_handler);
+    mul_data* mul = brn_extract(brn, filename, (handler)mul_handler, 0);
 
     mkdir(filename, S_IRWXU);
     for (unsigned int i = 0; i < mul->count; i++)
@@ -2480,7 +2537,7 @@ void extract(brn_data* brn, char* filename, char* prefix)
   }
   else if (strnstr(filename, ".BSP", 40))
   {
-    bsp_data* bsp = brn_extract(brn, filename, (handler)bsp_handler);
+    bsp_data* bsp = brn_extract(brn, filename, (handler)bsp_handler, 0);
 
     bsp_write(bsp, filename, NULL);
 
@@ -2494,7 +2551,7 @@ void extract(brn_data* brn, char* filename, char* prefix)
   {
     mkdir(filename, S_IRWXU);
 
-    mod_data* mod = brn_extract(brn, filename, (handler)mod_handler);
+    mod_data* mod = brn_extract(brn, filename, (handler)mod_handler, 0);
     mod_write(mod, filename, filename);
 
     for (unsigned int i = 0; i < mod->mesh_count; i++)
@@ -2514,11 +2571,11 @@ void extract(brn_data* brn, char* filename, char* prefix)
   {
     mkdir(filename, S_IRWXU);
 
-    act_data* act = brn_extract(brn, filename, (handler)act_handler);
+    act_data* act = brn_extract(brn, filename, (handler)act_handler, 0);
 
     char mod_filename[255];
     sprintf(mod_filename, "%s.MOD", act->model_name);
-    mod_data* mod = brn_extract(brn, mod_filename, (handler)mod_handler);
+    mod_data* mod = brn_extract(brn, mod_filename, (handler)mod_handler, 0);
 
     mod_write_act(mod, act, filename);
 
@@ -2541,28 +2598,36 @@ void extract(brn_data* brn, char* filename, char* prefix)
     char txt[64];
     sprintf(txt, "%s.TXT", filename);
 
-    shp_data* shp = brn_extract(brn, filename, (handler)shp_handler);
+    shp_data* shp = brn_extract(brn, filename, (handler)shp_handler, 0);
     shp_write(shp, txt);
     shp_close(shp);
   }
+  else if (strnstr(filename, ".YAK", 40))
+  {
+    brn_extract(brn, filename, 0, 0);
+
+    yak_data* yak = brn_extract(brn, filename, (handler)yak_handler, 0);
+    brn_extract(brn, yak->sound, 0, (char*)"WAV");
+    yak_close(yak);
+  }
   else if (strnstr(filename, ".SCN", 40))
   {
-    brn_extract(brn, filename, 0);
+    brn_extract(brn, filename, 0, 0);
 
-    scn_data* scn = brn_extract(brn, filename, (handler)scn_handler);
+    scn_data* scn = brn_extract(brn, filename, (handler)scn_handler, 0);
     extract(brn, scn->bsp, NULL);
     scn_close(scn);
   }
   else if (strnstr(filename, ".CUR", 40))
   {
-    brn_extract(brn, filename, 0);
+    brn_extract(brn, filename, 0, 0);
 
     char bmp_file[64];
     strncpy(bmp_file, filename, 64);
     strncpy(bmp_file + strlen(bmp_file) - 4, ".BMP", 4);
 
-    cur_data* cur = brn_extract(brn, filename, (handler)cur_handler);
-    bmp_data* bmp = brn_extract(brn, bmp_file, (handler)bmp_handler);
+    cur_data* cur = brn_extract(brn, filename, (handler)cur_handler, 0);
+    bmp_data* bmp = brn_extract(brn, bmp_file, (handler)bmp_handler, 0);
 
     mkdir(bmp_file, S_IRWXU);
     for (unsigned int i = 0; i < cur->frame_count; i++)
@@ -2577,19 +2642,19 @@ void extract(brn_data* brn, char* filename, char* prefix)
   }
   else if (strnstr(filename, ".SIF", 40))
   {
-    brn_extract(brn, filename, 0);
+    brn_extract(brn, filename, 0, 0);
 
-    sif_data* sif = brn_extract(brn, filename, (handler)sif_handler);
-    scn_data* scn = brn_extract(brn, sif->scene, (handler)scn_handler);
-    brn_extract(brn, sif->scene, 0);
+    sif_data* sif = brn_extract(brn, filename, (handler)sif_handler, 0);
+    scn_data* scn = brn_extract(brn, sif->scene, (handler)scn_handler, 0);
+    brn_extract(brn, sif->scene, 0, 0);
 
     mkdir(scn->bsp, S_IRWXU);
-    bsp_data* bsp = brn_extract(brn, scn->bsp, (handler)bsp_handler);
+    bsp_data* bsp = brn_extract(brn, scn->bsp, (handler)bsp_handler, 0);
 
     mod_data* mods[sif->model_count];
     for (unsigned int i = 0; i < sif->model_count; i++)
     {
-      mods[i] = brn_extract(brn, sif->models[i].name, (handler)mod_handler);
+      mods[i] = brn_extract(brn, sif->models[i].name, (handler)mod_handler, 0);
     }
 
     // Merge BSP and MODs
@@ -2628,7 +2693,7 @@ void extract(brn_data* brn, char* filename, char* prefix)
   }
   else
   {
-    brn_extract(brn, filename, 0);
+    brn_extract(brn, filename, 0, 0);
   }
 }
 
@@ -2666,7 +2731,7 @@ void extract_multi(brn_data* brn, int count, char** filenames)
   {
     if (strnstr(filenames[i], ".BSP", 40))
     {
-      bsps[i2++] = brn_extract(brn, filenames[i], (handler)bsp_handler);
+      bsps[i2++] = brn_extract(brn, filenames[i], (handler)bsp_handler, 0);
     }
   }
 
@@ -2677,7 +2742,7 @@ void extract_multi(brn_data* brn, int count, char** filenames)
   {
     if (strnstr(filenames[i], ".MOD", 40))
     {
-      mods[i2] = brn_extract(brn, filenames[i], (handler)mod_handler);
+      mods[i2] = brn_extract(brn, filenames[i], (handler)mod_handler, 0);
       strncpy(mods[i2]->mod_name, filenames[i], 32);
       i2++;
     }
@@ -2746,7 +2811,7 @@ void extract_props(brn_data* brn, int count, char** filenames)
 
   for (int i = 0; i < count; i++)
   {
-    bsp_data* bsp = brn_extract(brn, filenames[i], (handler)bsp_handler);
+    bsp_data* bsp = brn_extract(brn, filenames[i], (handler)bsp_handler, 0);
 
     for (unsigned int j = 0; j < bsp->model_count; j++)
     {
