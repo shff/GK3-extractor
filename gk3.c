@@ -448,6 +448,68 @@ typedef struct
   }* models;
 } sif_data;
 
+// Exporting-only Structures
+
+typedef struct {
+  char magic[4];
+  int version;
+  char name[64];
+  int flags;
+  int frame_count;
+  int tag_count;
+  int surface_count;
+  int skin_count;
+  int frame_offset;
+  int tag_offset;
+  int surface_offset;
+  int file_size;
+} md3_header;
+
+typedef struct {
+  float min[3];
+  float max[3];
+  float origin[3];
+  float radius;
+  char name[16];
+} md3_frame;
+
+typedef struct {
+  int magic;
+  char name[64];
+  int flags;
+  int frame_count;
+  int vertice_count;
+  int triangle_count;
+  int triangle_offset;
+  int shader_offset;
+  int uv_offset;
+  int vertice_offset;
+  int file_size;
+} md3_surface;
+
+typedef struct {
+  short x;
+  short y;
+  short z;
+  short normal;
+} md3_vertice;
+
+typedef struct {
+  int a;
+  int b;
+  int c;
+} md3_triangle;
+
+typedef struct {
+  float u;
+  float v;
+} md3_uv;
+
+typedef struct {
+  char name[64];
+  int index;
+} md3_shader;
+
 // Utility Functions
 
 float S1I7F8(unsigned short n)
@@ -2193,6 +2255,14 @@ void mod_write(mod_data* data, char* filename, char* prefix)
   fclose(f);
 }
 
+short encode_normals_to_md3(vertice* normals)
+{
+  short encoded = 0;
+  (void)normals;
+
+  return encoded;
+}
+
 void mod_apply_act_frame(mod_data* data, act_data* act_data, int frame)
 {
   int i = frame;
@@ -2247,6 +2317,134 @@ void mod_apply_act_frame(mod_data* data, act_data* act_data, int frame)
       }
     }
   }
+}
+
+void md3_write(mod_data* data, act_data* act, char* filename)
+{
+  FILE* f = fopen(filename, "wb");
+
+  // Header
+
+  md3_header header = {
+    .magic = "IDP3",
+    .version = 15,
+    .name = "model",
+    .flags = 0,
+    .frame_count = act->frame_count,
+    .tag_count = 0,
+    .surface_count = data->mesh_count,
+    .frame_offset = 68,
+    .tag_offset = 0,
+    .surface_offset = 68 + 40,
+    .file_size = 68 + 40 + (68 * data->mesh_count),
+  };
+  fwrite(&header, sizeof(md3_header), 1, f);
+
+  // Write Frames
+
+  for (unsigned int i = 0; i < act->frame_count; i++)
+  {
+    md3_frame frame = {
+      .min = { 0, 0, 0 },
+      .max = { 0, 0, 0 },
+      .origin = { 0, 0, 0 },
+      .radius = 0,
+      .name = "frame",
+    };
+    fwrite(&frame, sizeof(md3_frame), 1, f);
+  }
+
+  // Surfaces
+
+  for (unsigned int i = 0; i < data->mesh_count; i++)
+  {
+    for (unsigned int j = 0; j < data->meshes[i].section_count; j++)
+    {
+      md3_surface surface = {
+        .magic = 0x33504449,
+        .name = "surface",
+        .flags = 0,
+        .frame_count = act->frame_count,
+        .vertice_count = data->meshes[j].sections[i].vertice_count,
+        .triangle_count = data->meshes[j].sections[i].triangle_count,
+        .triangle_offset = 68 + 40 + (68 * data->mesh_count) + (68 * data->mesh_count),
+        .shader_offset = 68 + 40 + (68 * data->mesh_count) + (68 * data->mesh_count) + (12 * data->meshes[j].sections[i].triangle_count),
+        .uv_offset = 68 + 40 + (68 * data->mesh_count) + (68 * data->mesh_count) + (12 * data->meshes[j].sections[i].triangle_count) + (68 * data->meshes[j].sections[i].vertice_count),
+        .vertice_offset = 68 + 40 + (68 * data->mesh_count) + (68 * data->mesh_count) + (12 * data->meshes[j].sections[i].triangle_count) + (68 * data->meshes[j].sections[i].vertice_count) + (8 * data->meshes[j].sections[i].vertice_count),
+        .file_size = 68 + 40 + (68 * data->mesh_count) + (68 * data->mesh_count) + (12 * data->meshes[j].sections[i].triangle_count) + (68 * data->meshes[j].sections[i].vertice_count) + (8 * data->meshes[j].sections[i].vertice_count) + (12 * data->meshes[j].sections[i].vertice_count),
+      };
+      fwrite(&surface, sizeof(md3_surface), 1, f);
+    }
+  }
+
+  // Shaders
+
+  md3_shader shader = {
+    .name = "shader",
+    .index = 0,
+  };
+  fwrite(&shader, sizeof(md3_shader), 1, f);
+
+  // Triangles
+
+  for (unsigned int i = 0; i < data->mesh_count; i++)
+  {
+    for (unsigned int j = 0; j < data->meshes[i].section_count; j++)
+    {
+      for (unsigned int k = 0; k < data->meshes[i].sections[j].triangle_count; k++)
+      {
+        md3_triangle triangle = {
+          .a = data->meshes[i].sections[j].triangles[k].a,
+          .b = data->meshes[i].sections[j].triangles[k].b,
+          .c = data->meshes[i].sections[j].triangles[k].c,
+        };
+        fwrite(&triangle, sizeof(md3_triangle), 1, f);
+      }
+    }
+  }
+
+  // UVs
+
+  for (unsigned int i = 0; i < data->mesh_count; i++)
+  {
+    for (unsigned int j = 0; j < data->meshes[i].section_count; j++)
+    {
+      for (unsigned int k = 0; k < data->meshes[i].sections[j].vertice_count; k++)
+      {
+        md3_uv uv = {
+          .u = data->meshes[i].sections[j].coords[k].u,
+          .v = data->meshes[i].sections[j].coords[k].v,
+        };
+        fwrite(&uv, sizeof(md3_uv), 1, f);
+      }
+    }
+  }
+
+  // Vertices
+
+  for (unsigned int i = 0; i < act->frame_count; i++)
+  {
+    mod_apply_act_frame(data, act, i);
+
+    for (unsigned int j = 0; j < data->mesh_count; j++)
+    {
+      for (unsigned int k = 0; k < data->meshes[j].section_count; k++)
+      {
+        for (unsigned int l = 0; l < data->meshes[j].sections[k].vertice_count; l++)
+        {
+          md3_vertice vertice = {
+            .x = data->meshes[j].sections[k].vertices[l].x,
+            .y = data->meshes[j].sections[k].vertices[l].y,
+            .z = data->meshes[j].sections[k].vertices[l].z,
+            .normal = encode_normals_to_md3(&data->meshes[j].sections[k].normals[l]),
+          };
+          fwrite(&vertice, sizeof(md3_vertice), 1, f);
+        }
+      }
+    }
+  }
+
+  fclose(f);
 }
 
 void shp_operator1(char stack[128][128], unsigned int* stack_pos, const char* operator)
@@ -2570,6 +2768,18 @@ void extract(brn_data* brn, char* filename, char* prefix)
     mkdir(filename, S_IRWXU);
 
     act_data* act = brn_extract(brn, filename, (handler)act_handler, 0);
+
+    // Have a separate scope for generating the MD3, since generation modifies the MOD object
+    {
+      char mod_filename[255];
+      sprintf(mod_filename, "%s.MOD", act->model_name);
+      mod_data* mod = brn_extract(brn, mod_filename, (handler)mod_handler, 0);
+
+      // Write MD3 file
+      char md3_filename[255];
+      sprintf(md3_filename, "%s.md3", filename);
+      md3_write(mod, act, md3_filename);
+    }
 
     char mod_filename[255];
     sprintf(mod_filename, "%s.MOD", act->model_name);
