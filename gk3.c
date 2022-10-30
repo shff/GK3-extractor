@@ -2193,65 +2193,59 @@ void mod_write(mod_data* data, char* filename, char* prefix)
   fclose(f);
 }
 
-void mod_write_act(mod_data* data, act_data* act_data, char* prefix)
+void mod_apply_act_frame(mod_data* data, act_data* act_data, int frame)
 {
-  for (unsigned int i = 0; i < act_data->frame_count; i++)
+  int i = frame;
+  if (data->mesh_count != act_data->frames[i].mesh_count)
   {
-    if (data->mesh_count != act_data->frames[i].mesh_count)
+    printf("Mesh count mismatch in frame %i - %i (MOD) vs %i (ACT)\n", i, data->mesh_count, act_data->frames[i].mesh_count);
+    return;
+  }
+
+  for (unsigned int j = 0; j < act_data->frames[i].mesh_count; j++)
+  {
+    if (act_data->frames[i].meshes[j].has_transform)
     {
-      printf("Mesh count mismatch in frame %i - %i (MOD) vs %i (ACT)\n", i, data->mesh_count, act_data->frames[i].mesh_count);
-      return;
+      // Apply transformation matrix into the MOD. This replaces existing transforms.
+
+      memcpy(data->meshes[j].transform, act_data->frames[i].meshes[j].transform, sizeof(float) * 12);
     }
 
-    for (unsigned int j = 0; j < act_data->frames[i].mesh_count; j++)
+    if (act_data->frames[i].meshes[j].section_count > data->meshes[j].section_count)
     {
-      if (act_data->frames[i].meshes[j].has_transform)
-      {
-        // Apply transformation matrix into the MOD. This replaces existing transforms.
+      printf("Session count mismatch in frame %i mesh %i - %i (MOD) vs %i (ACT)\n", i, j, data->meshes[j].section_count, act_data->frames[i].meshes[j].section_count);
+      continue;
+    }
 
-        memcpy(data->meshes[j].transform, act_data->frames[i].meshes[j].transform, sizeof(float) * 12);
-      }
-
-      if (act_data->frames[i].meshes[j].section_count > data->meshes[j].section_count)
+    for (unsigned int k = 0; k < act_data->frames[i].meshes[j].section_count; k++)
+    {
+      if (act_data->frames[i].meshes[j].sections[k].vertice_count > data->meshes[j].sections[k].vertice_count)
       {
-        printf("Session count mismatch in frame %i mesh %i - %i (MOD) vs %i (ACT)\n", i, j, data->meshes[j].section_count, act_data->frames[i].meshes[j].section_count);
+        // Vertice mismatches happen (eg: GRA_GRALERREADNOTEA.ACT), just ignore
+        printf("Vertice count mismatch in frame %i mesh %i section %i - %i (MOD) vs %i (ACT)\n", i, j, k, data->meshes[j].sections[k].vertice_count, act_data->frames[i].meshes[j].sections[k].vertice_count);
         continue;
       }
 
-      for (unsigned int k = 0; k < act_data->frames[i].meshes[j].section_count; k++)
+      for (unsigned int l = 0; l < act_data->frames[i].meshes[j].sections[k].vertice_count; l++)
       {
-        if (act_data->frames[i].meshes[j].sections[k].vertice_count > data->meshes[j].sections[k].vertice_count)
+        if (act_data->frames[i].meshes[j].sections[k].type == 0)
         {
-          // Vertice mismatches happen (eg: GRA_GRALERREADNOTEA.ACT), just ignore
-          printf("Vertice count mismatch in frame %i mesh %i section %i - %i (MOD) vs %i (ACT)\n", i, j, k, data->meshes[j].sections[k].vertice_count, act_data->frames[i].meshes[j].sections[k].vertice_count);
-          continue;
+          // Replace vertices with new values
+
+          data->meshes[j].sections[k].vertices[l].x = act_data->frames[i].meshes[j].sections[k].vertices[l].x;
+          data->meshes[j].sections[k].vertices[l].y = act_data->frames[i].meshes[j].sections[k].vertices[l].y;
+          data->meshes[j].sections[k].vertices[l].z = act_data->frames[i].meshes[j].sections[k].vertices[l].z;
         }
-
-        for (unsigned int l = 0; l < act_data->frames[i].meshes[j].sections[k].vertice_count; l++)
+        else if (act_data->frames[i].meshes[j].sections[k].type == 1)
         {
-          if (act_data->frames[i].meshes[j].sections[k].type == 0)
-          {
-            // Replace vertices with new values
+          // Translate vertices using a delta
 
-            data->meshes[j].sections[k].vertices[l].x = act_data->frames[i].meshes[j].sections[k].vertices[l].x;
-            data->meshes[j].sections[k].vertices[l].y = act_data->frames[i].meshes[j].sections[k].vertices[l].y;
-            data->meshes[j].sections[k].vertices[l].z = act_data->frames[i].meshes[j].sections[k].vertices[l].z;
-          }
-          else if (act_data->frames[i].meshes[j].sections[k].type == 1)
-          {
-            // Translate vertices using a delta
-
-            data->meshes[j].sections[k].vertices[l].x += act_data->frames[i].meshes[j].sections[k].vertices[l].x;
-            data->meshes[j].sections[k].vertices[l].y += act_data->frames[i].meshes[j].sections[k].vertices[l].y;
-            data->meshes[j].sections[k].vertices[l].z += act_data->frames[i].meshes[j].sections[k].vertices[l].z;
-          }
+          data->meshes[j].sections[k].vertices[l].x += act_data->frames[i].meshes[j].sections[k].vertices[l].x;
+          data->meshes[j].sections[k].vertices[l].y += act_data->frames[i].meshes[j].sections[k].vertices[l].y;
+          data->meshes[j].sections[k].vertices[l].z += act_data->frames[i].meshes[j].sections[k].vertices[l].z;
         }
       }
     }
-
-    char filename[64];
-    sprintf(filename, "frame_%i", i);
-    mod_write(data, filename, prefix);
   }
 }
 
@@ -2582,7 +2576,15 @@ void extract(brn_data* brn, char* filename, char* prefix)
     mod_data* mod = brn_extract(brn, mod_filename, (handler)mod_handler, 0);
 
     // Write one OBJ file per frame
-    mod_write_act(mod, act, filename);
+    for (unsigned int i = 0; i < act->frame_count; i++)
+    {
+      // The MOD object is modified by the ACT object, and those modifications must persist between frames
+      mod_apply_act_frame(mod, act, i);
+
+      char frame_filename[64];
+      sprintf(frame_filename, "frame_%i", i);
+      mod_write(mod, frame_filename, filename);
+    }
 
     // Extract Textures
     for (unsigned int i = 0; i < mod->mesh_count; i++)
