@@ -2207,7 +2207,7 @@ void mod_write_act(mod_data* data, act_data* act_data, char* prefix)
     {
       if (act_data->frames[i].meshes[j].has_transform)
       {
-        // Apply transformation matrix
+        // Apply transformation matrix into the MOD. This replaces existing transforms.
 
         memcpy(data->meshes[j].transform, act_data->frames[i].meshes[j].transform, sizeof(float) * 12);
       }
@@ -2231,12 +2231,16 @@ void mod_write_act(mod_data* data, act_data* act_data, char* prefix)
         {
           if (act_data->frames[i].meshes[j].sections[k].type == 0)
           {
+            // Replace vertices with new values
+
             data->meshes[j].sections[k].vertices[l].x = act_data->frames[i].meshes[j].sections[k].vertices[l].x;
             data->meshes[j].sections[k].vertices[l].y = act_data->frames[i].meshes[j].sections[k].vertices[l].y;
             data->meshes[j].sections[k].vertices[l].z = act_data->frames[i].meshes[j].sections[k].vertices[l].z;
           }
           else if (act_data->frames[i].meshes[j].sections[k].type == 1)
           {
+            // Translate vertices using a delta
+
             data->meshes[j].sections[k].vertices[l].x += act_data->frames[i].meshes[j].sections[k].vertices[l].x;
             data->meshes[j].sections[k].vertices[l].y += act_data->frames[i].meshes[j].sections[k].vertices[l].y;
             data->meshes[j].sections[k].vertices[l].z += act_data->frames[i].meshes[j].sections[k].vertices[l].z;
@@ -2577,8 +2581,10 @@ void extract(brn_data* brn, char* filename, char* prefix)
     sprintf(mod_filename, "%s.MOD", act->model_name);
     mod_data* mod = brn_extract(brn, mod_filename, (handler)mod_handler, 0);
 
+    // Write one OBJ file per frame
     mod_write_act(mod, act, filename);
 
+    // Extract Textures
     for (unsigned int i = 0; i < mod->mesh_count; i++)
     {
       for (unsigned int j = 0; j < mod->meshes[i].section_count; j++)
