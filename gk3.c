@@ -2115,16 +2115,16 @@ bsp_data* bsp_merge(unsigned int bsp_count, bsp_data** data, unsigned int mod_co
   return new_data;
 }
 
-void mod_write(mod_data* data, char* filename, char* prefix)
+void mod_write(mod_data* data, char* filename, char* prefix, char* mtl_name)
 {
   char obj[64], mtl[64];
   sprintf(obj, "%s/%s.OBJ", prefix, filename);
-  sprintf(mtl, "%s/%s.MTL", prefix, filename);
+  sprintf(mtl, "%s/%s.MTL", prefix, mtl_name ? mtl_name : filename);
 
   FILE* f = fopen(obj, "w");
   FILE* m = fopen(mtl, "w");
 
-  fprintf(f, "mtllib %s.MTL\n", filename);
+  fprintf(f, "mtllib %s.MTL\n", mtl_name ? mtl_name : filename);
 
   for (unsigned int i = 0; i < data->mesh_count; i++)
   {
@@ -2550,7 +2550,7 @@ void extract(brn_data* brn, char* filename, char* prefix)
     mkdir(filename, S_IRWXU);
 
     mod_data* mod = brn_extract(brn, filename, (handler)mod_handler, 0);
-    mod_write(mod, filename, filename);
+    mod_write(mod, filename, filename, NULL);
 
     for (unsigned int i = 0; i < mod->mesh_count; i++)
     {
@@ -2583,7 +2583,7 @@ void extract(brn_data* brn, char* filename, char* prefix)
 
       char frame_filename[64];
       sprintf(frame_filename, "frame_%i", i);
-      mod_write(mod, frame_filename, filename);
+      mod_write(mod, frame_filename, filename, filename);
     }
 
     // Extract Textures
