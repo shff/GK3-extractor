@@ -2559,6 +2559,9 @@ void extract(brn_data* brn, char* filename, char* prefix)
         if (mod->meshes[i].sections[j].texture_file[0] == 0)
           continue;
 
+        if (mod->meshes[i].sections[j].texture_file[0] == '.')
+          continue;
+
         extract(brn, mod->meshes[i].sections[j].texture_file, filename);
       }
     }
