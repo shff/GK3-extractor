@@ -2627,7 +2627,8 @@ void extract(brn_data* brn, char* filename, char* prefix)
     brn_extract(brn, filename, 0, 0);
 
     scn_data* scn = brn_extract(brn, filename, (handler)scn_handler, 0);
-    extract(brn, scn->bsp, NULL);
+    if (scn->bsp[0] != 0)
+      extract(brn, scn->bsp, NULL);
     scn_close(scn);
   }
   else if (strnstr(filename, ".CUR", 40))
@@ -2657,50 +2658,62 @@ void extract(brn_data* brn, char* filename, char* prefix)
     brn_extract(brn, filename, 0, 0);
 
     sif_data* sif = brn_extract(brn, filename, (handler)sif_handler, 0);
-    scn_data* scn = brn_extract(brn, sif->scene, (handler)scn_handler, 0);
-    brn_extract(brn, sif->scene, 0, 0);
 
-    mkdir(scn->bsp, S_IRWXU);
-    bsp_data* bsp = brn_extract(brn, scn->bsp, (handler)bsp_handler, 0);
-
-    mod_data* mods[sif->model_count];
-    for (unsigned int i = 0; i < sif->model_count; i++)
+    if (sif->scene[0] != 0)
     {
-      mods[i] = brn_extract(brn, sif->models[i].name, (handler)mod_handler, 0);
-    }
+      scn_data* scn = brn_extract(brn, sif->scene, (handler)scn_handler, 0);
+      brn_extract(brn, sif->scene, 0, 0);
 
-    // Merge BSP and MODs
-
-    bsp_data* new_data = bsp_merge(1, &bsp, sif->model_count, mods);
-    bsp_write(new_data, scn->bsp, NULL);
-
-    // Extract Textures
-
-    for (unsigned int j = 0; j < bsp->surface_count; j++)
-    {
-      extract(brn, bsp->surfaces[j].texture_name, scn->bsp);
-    }
-
-    for (unsigned int i = 0; i < sif->model_count; i++)
-    {
-      for (unsigned int j = 0; j < mods[i]->mesh_count; j++)
+      if (scn->bsp[0] != 0)
       {
-        for (unsigned int k = 0; k < mods[i]->meshes[j].section_count; k++)
+        mkdir(scn->bsp, S_IRWXU);
+        bsp_data* bsp = brn_extract(brn, scn->bsp, (handler)bsp_handler, 0);
+
+        mod_data* mods[sif->model_count];
+        for (unsigned int i = 0; i < sif->model_count; i++)
         {
-          if (mods[i]->meshes[j].sections[k].texture_file[0] != 0)
+          if (sif->models[i].name[0] == 0)
+            continue;
+
+          mods[i] = brn_extract(brn, sif->models[i].name, (handler)mod_handler, 0);
+        }
+
+        // Merge BSP and MODs
+
+        bsp_data* new_data = bsp_merge(1, &bsp, sif->model_count, mods);
+        bsp_write(new_data, scn->bsp, NULL);
+
+        // Extract Textures
+
+        for (unsigned int j = 0; j < bsp->surface_count; j++)
+        {
+          extract(brn, bsp->surfaces[j].texture_name, scn->bsp);
+        }
+
+        for (unsigned int i = 0; i < sif->model_count; i++)
+        {
+          for (unsigned int j = 0; j < mods[i]->mesh_count; j++)
           {
-            extract(brn, mods[i]->meshes[j].sections[k].texture_file, scn->bsp);
+            for (unsigned int k = 0; k < mods[i]->meshes[j].section_count; k++)
+            {
+              if (mods[i]->meshes[j].sections[k].texture_file[0] != 0)
+              {
+                extract(brn, mods[i]->meshes[j].sections[k].texture_file, scn->bsp);
+              }
+            }
           }
         }
+
+        for (unsigned int i = 0; i < sif->model_count; i++)
+        {
+          mod_close(mods[i]);
+        }
+        bsp_close(bsp);
       }
+
+      scn_close(scn);
     }
 
-    for (unsigned int i = 0; i < sif->model_count; i++)
-    {
-      mod_close(mods[i]);
-    }
-    bsp_close(bsp);
-    scn_close(scn);
     sif_close(sif);
   }
   else
