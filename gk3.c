@@ -2618,7 +2618,8 @@ void extract(brn_data* brn, char* filename, char* prefix)
     brn_extract(brn, filename, 0, 0);
 
     yak_data* yak = brn_extract(brn, filename, (handler)yak_handler, 0);
-    brn_extract(brn, yak->sound, 0, (char*)"WAV");
+    if (yak->sound[0] != 0)
+      brn_extract(brn, yak->sound, 0, (char*)"WAV");
     yak_close(yak);
   }
   else if (strnstr(filename, ".SCN", 40))
