@@ -1021,7 +1021,7 @@ bsp_data* bsp_handler(char* content)
 
   for (unsigned int i = 0; i < h.surface_count; i++)
   {
-    char texture_name[64];
+    char texture_name[256];
     sprintf(texture_name, "%s.BMP", surfaces[i].texture_name);
     for(int j = 0; (texture_name[j] = (char)toupper(texture_name[j])); j++);
 
@@ -1139,7 +1139,7 @@ mod_data* mod_handler(char* content)
         return NULL;
       }
 
-      char texture_file[64];
+      char texture_file[256];
       sprintf(texture_file, "%s.BMP", sh.texture_file);
       strncpy(data->meshes[i].sections[j].texture_file, texture_file, 32);
       data->meshes[i].sections[j].triangle_count = sh.triangle_count;
@@ -1632,7 +1632,7 @@ scn_data* scn_handler(char* content)
 
   // Split line by line
   unsigned int mode = 0;
-  char current_light[64];
+  char current_light[256];
   for(char *t = content, *s, *line; (line = strtok_r(t, "\n\r", &s)); t = NULL)
   {
     line[strcspn(line, "/")] = 0;               // Remove comments
@@ -1831,7 +1831,7 @@ void bsp_write(bsp_data* data, char* filename, char* model)
 
   mkdir(filename, S_IRWXU);
 
-  char obj[64], mtl[64];
+  char obj[256], mtl[256];
   sprintf(obj, "%s/%s.OBJ", filename, model ? model : filename);
   sprintf(mtl, "%s/%s.MTL", filename, model ? model : filename);
 
@@ -1860,7 +1860,7 @@ void bsp_write(bsp_data* data, char* filename, char* model)
     if (model && strcmp(data->models[i].name, model) != 0)
       continue;
 
-    char texture_name[64] = {0};
+    char texture_name[256] = {0};
     for (unsigned int j = 0; j < data->surface_count; j++)
     {
       if (data->surfaces[j].model_index != i)
@@ -2117,7 +2117,7 @@ bsp_data* bsp_merge(unsigned int bsp_count, bsp_data** data, unsigned int mod_co
 
 void mod_write(mod_data* data, char* filename, char* prefix, char* mtl_name)
 {
-  char obj[64], mtl[64];
+  char obj[256], mtl[256];
   sprintf(obj, "%s/%s.OBJ", prefix, filename);
   sprintf(mtl, "%s/%s.MTL", prefix, mtl_name ? mtl_name : filename);
 
@@ -2574,7 +2574,7 @@ void extract(brn_data* brn, char* filename, char* prefix)
 
     act_data* act = brn_extract(brn, filename, (handler)act_handler, 0);
 
-    char mod_filename[255];
+    char mod_filename[256];
     sprintf(mod_filename, "%s.MOD", act->model_name);
     mod_data* mod = brn_extract(brn, mod_filename, (handler)mod_handler, 0);
 
@@ -2584,7 +2584,7 @@ void extract(brn_data* brn, char* filename, char* prefix)
       // The MOD object is modified by the ACT object, and those modifications must persist between frames
       mod_apply_act_frame(mod, act, i);
 
-      char frame_filename[64];
+      char frame_filename[256];
       sprintf(frame_filename, "frame_%i", i);
       mod_write(mod, frame_filename, filename, filename);
     }
@@ -2606,7 +2606,7 @@ void extract(brn_data* brn, char* filename, char* prefix)
   }
   else if (strnstr(filename, ".SHP", 40) && strnstr(filename, "GK3.SHP", 40) == 0)
   {
-    char txt[64];
+    char txt[256];
     sprintf(txt, "%s.TXT", filename);
 
     shp_data* shp = brn_extract(brn, filename, (handler)shp_handler, 0);
@@ -2635,8 +2635,8 @@ void extract(brn_data* brn, char* filename, char* prefix)
   {
     brn_extract(brn, filename, 0, 0);
 
-    char bmp_file[64];
-    strncpy(bmp_file, filename, 64);
+    char bmp_file[256];
+    strncpy(bmp_file, filename, 256);
     strncpy(bmp_file + strlen(bmp_file) - 4, ".BMP", 4);
 
     cur_data* cur = brn_extract(brn, filename, (handler)cur_handler, 0);
@@ -2645,7 +2645,7 @@ void extract(brn_data* brn, char* filename, char* prefix)
     mkdir(bmp_file, S_IRWXU);
     for (unsigned int i = 0; i < cur->frame_count; i++)
     {
-      char bmp_output[32];
+      char bmp_output[256];
       sprintf(bmp_output, "%u.BMP", i);
       bmp_write(bmp, bmp_output, bmp_file, 1, i * 40, (i + 1) * 40, 3);
     }
@@ -2698,6 +2698,9 @@ void extract(brn_data* brn, char* filename, char* prefix)
             {
               if (mods[i]->meshes[j].sections[k].texture_file[0] != 0)
               {
+                if (mods[i]->meshes[j].sections[k].texture_file[0] == '.')
+                  continue;
+
                 extract(brn, mods[i]->meshes[j].sections[k].texture_file, scn->bsp);
               }
             }
