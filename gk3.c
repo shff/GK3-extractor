@@ -2880,14 +2880,32 @@ int main(int argc, char** argv)
     {
       if (strstr(brn->files[i].name, argv[2]) != 0)
       {
+        printf("Extracting: %s\n", brn->files[i].name);
         extract(brn, brn->files[i].name, NULL);
       }
+    }
+  }
+  else if (strncmp(argv[1], "--all", 5) == 0)
+  {
+    for (unsigned int i = 0; i < brn->count; i++)
+    {
+      printf("Extracting: %s\n", brn->files[i].name);
+      brn_extract(brn, brn->files[i].name, 0, 0);
+    }
+  }
+  else if (strncmp(argv[1], "--raw", 5) == 0)
+  {
+    for (int i = 2; i < argc; i++)
+    {
+      printf("Extracting %s\n", argv[i]);
+      brn_extract(brn, argv[i], 0, 0);
     }
   }
   else
   {
     for (int i = 1; i < argc; i++)
     {
+      printf("Extracting %s\n", argv[i]);
       extract(brn, argv[i], NULL);
     }
   }
