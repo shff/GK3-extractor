@@ -2578,334 +2578,338 @@ void extract(brn_data* brn, char* filename, char* prefix)
     sprintf(mod_filename, "%s.MOD", act->model_name);
     mod_data* mod = brn_extract(brn, mod_filename, (handler)mod_handler, 0);
 
-    // Write one OBJ file per frame
-    for (unsigned int i = 0; i < act->frame_count; i++)
+    if (getenv("OBJ"))
     {
-      // The MOD object is modified by the ACT object, and those modifications must persist between frames
-      mod_apply_act_frame(mod, act, i);
-
-      char frame_filename[256];
-      sprintf(frame_filename, "frame_%i", i);
-      mod_write(mod, frame_filename, filename, filename);
-    }
-
-    // --- glTF morph-target export ---
-    // Re-load a fresh MOD so we can replay from frame 0 without the OBJ loop's
-    // accumulated state interfering.
-    mod_data* gmod = brn_extract(brn, mod_filename, (handler)mod_handler, 0);
-
-    // Count total vertices and triangles across all meshes/sections.
-    unsigned int total_verts = 0, total_tris = 0;
-    for (unsigned int i = 0; i < gmod->mesh_count; i++)
-      for (unsigned int j = 0; j < gmod->meshes[i].section_count; j++)
+      // Write one OBJ file per frame
+      for (unsigned int i = 0; i < act->frame_count; i++)
       {
-        total_verts += gmod->meshes[i].sections[j].vertice_count;
-        total_tris  += gmod->meshes[i].sections[j].triangle_count;
+        // The MOD object is modified by the ACT object, and those modifications must persist between frames
+        mod_apply_act_frame(mod, act, i);
+
+        char frame_filename[256];
+        sprintf(frame_filename, "frame_%i", i);
+        mod_write(mod, frame_filename, filename, filename);
       }
-
-    // Allocate per-frame world-space position snapshots: flat [frame * total_verts * 3]
-    float* snapshots = malloc(sizeof(float) * total_verts * 3 * act->frame_count);
-
-    // Replay frames, snapshot world-space positions each frame.
-    for (unsigned int f = 0; f < act->frame_count; f++)
-    {
-      mod_apply_act_frame(gmod, act, f);
-      unsigned int vi = 0;
-      for (unsigned int i = 0; i < gmod->mesh_count; i++)
-        for (unsigned int j = 0; j < gmod->meshes[i].section_count; j++)
-          for (unsigned int k = 0; k < gmod->meshes[i].sections[j].vertice_count; k++)
-          {
-            vertice v = transform(gmod->meshes[i].transform, gmod->meshes[i].sections[j].vertices[k]);
-            snapshots[(f * total_verts + vi) * 3 + 0] = v.x;
-            snapshots[(f * total_verts + vi) * 3 + 1] = v.y;
-            snapshots[(f * total_verts + vi) * 3 + 2] = -v.z; // same flip as mod_write
-            vi++;
-          }
     }
-
-    // Collect UVs and indices from the (now final-frame) gmod — topology never changes.
-    float* uvs = malloc(sizeof(float) * total_verts * 2);
-    unsigned short* indices = malloc(sizeof(unsigned short) * total_tris * 3);
+    else
     {
-      unsigned int vi = 0, ii = 0, vbase = 0;
+      // --- glTF morph-target export ---
+      // Re-load a fresh MOD so we can replay from frame 0 without the OBJ loop's
+      // accumulated state interfering.
+      mod_data* gmod = brn_extract(brn, mod_filename, (handler)mod_handler, 0);
+
+      // Count total vertices and triangles across all meshes/sections.
+      unsigned int total_verts = 0, total_tris = 0;
       for (unsigned int i = 0; i < gmod->mesh_count; i++)
-      {
         for (unsigned int j = 0; j < gmod->meshes[i].section_count; j++)
         {
-          for (unsigned int k = 0; k < gmod->meshes[i].sections[j].vertice_count; k++)
+          total_verts += gmod->meshes[i].sections[j].vertice_count;
+          total_tris  += gmod->meshes[i].sections[j].triangle_count;
+        }
+
+      // Allocate per-frame world-space position snapshots: flat [frame * total_verts * 3]
+      float* snapshots = malloc(sizeof(float) * total_verts * 3 * act->frame_count);
+
+      // Replay frames, snapshot world-space positions each frame.
+      for (unsigned int f = 0; f < act->frame_count; f++)
+      {
+        mod_apply_act_frame(gmod, act, f);
+        unsigned int vi = 0;
+        for (unsigned int i = 0; i < gmod->mesh_count; i++)
+          for (unsigned int j = 0; j < gmod->meshes[i].section_count; j++)
+            for (unsigned int k = 0; k < gmod->meshes[i].sections[j].vertice_count; k++)
+            {
+              vertice v = transform(gmod->meshes[i].transform, gmod->meshes[i].sections[j].vertices[k]);
+              snapshots[(f * total_verts + vi) * 3 + 0] = v.x;
+              snapshots[(f * total_verts + vi) * 3 + 1] = v.y;
+              snapshots[(f * total_verts + vi) * 3 + 2] = -v.z; // same flip as mod_write
+              vi++;
+            }
+      }
+
+      // Collect UVs and indices from the (now final-frame) gmod — topology never changes.
+      float* uvs = malloc(sizeof(float) * total_verts * 2);
+      unsigned short* indices = malloc(sizeof(unsigned short) * total_tris * 3);
+      {
+        unsigned int vi = 0, ii = 0, vbase = 0;
+        for (unsigned int i = 0; i < gmod->mesh_count; i++)
+        {
+          for (unsigned int j = 0; j < gmod->meshes[i].section_count; j++)
           {
-            uvs[vi * 2 + 0] = gmod->meshes[i].sections[j].coords[k].u;
-            uvs[vi * 2 + 1] = gmod->meshes[i].sections[j].coords[k].v;
-            vi++;
+            for (unsigned int k = 0; k < gmod->meshes[i].sections[j].vertice_count; k++)
+            {
+              uvs[vi * 2 + 0] = gmod->meshes[i].sections[j].coords[k].u;
+              uvs[vi * 2 + 1] = gmod->meshes[i].sections[j].coords[k].v;
+              vi++;
+            }
+            for (unsigned int k = 0; k < gmod->meshes[i].sections[j].triangle_count; k++)
+            {
+              triangle t = gmod->meshes[i].sections[j].triangles[k];
+              indices[ii++] = (unsigned short)(t.c + vbase);
+              indices[ii++] = (unsigned short)(t.b + vbase);
+              indices[ii++] = (unsigned short)(t.a + vbase);
+            }
+            vbase += gmod->meshes[i].sections[j].vertice_count;
           }
-          for (unsigned int k = 0; k < gmod->meshes[i].sections[j].triangle_count; k++)
-          {
-            triangle t = gmod->meshes[i].sections[j].triangles[k];
-            indices[ii++] = (unsigned short)(t.c + vbase);
-            indices[ii++] = (unsigned short)(t.b + vbase);
-            indices[ii++] = (unsigned short)(t.a + vbase);
-          }
-          vbase += gmod->meshes[i].sections[j].vertice_count;
         }
       }
-    }
 
-    // Build binary buffer in memory.
-    // Layout:
-    //   [0]  base positions  : total_verts * 3 floats
-    //   [1]  uvs             : total_verts * 2 floats
-    //   [2]  indices         : total_tris  * 3 unsigned shorts  (padded to 4-byte boundary)
-    //   [3+] morph positions : (frame_count-1) * total_verts * 3 floats  (frames 1..N as deltas vs frame 0)
+      // Build binary buffer in memory.
+      // Layout:
+      //   [0]  base positions  : total_verts * 3 floats
+      //   [1]  uvs             : total_verts * 2 floats
+      //   [2]  indices         : total_tris  * 3 unsigned shorts  (padded to 4-byte boundary)
+      //   [3+] morph positions : (frame_count-1) * total_verts * 3 floats  (frames 1..N as deltas vs frame 0)
 
-    unsigned int pos_bytes    = total_verts * 3 * sizeof(float);
-    unsigned int uv_bytes     = total_verts * 2 * sizeof(float);
-    unsigned int idx_bytes_raw = total_tris * 3 * sizeof(unsigned short);
-    unsigned int idx_bytes    = (idx_bytes_raw + 3) & ~3u; // pad to 4 bytes
-    unsigned int morph_bytes  = total_verts * 3 * sizeof(float); // per frame
+      unsigned int pos_bytes    = total_verts * 3 * sizeof(float);
+      unsigned int uv_bytes     = total_verts * 2 * sizeof(float);
+      unsigned int idx_bytes_raw = total_tris * 3 * sizeof(unsigned short);
+      unsigned int idx_bytes    = (idx_bytes_raw + 3) & ~3u; // pad to 4 bytes
+      unsigned int morph_bytes  = total_verts * 3 * sizeof(float); // per frame
 
-    unsigned int buf_size = pos_bytes + uv_bytes + idx_bytes + morph_bytes * (act->frame_count > 0 ? act->frame_count - 1 : 0);
-    unsigned char* buf = malloc(buf_size);
-    memset(buf, 0, buf_size);
+      unsigned int buf_size = pos_bytes + uv_bytes + idx_bytes + morph_bytes * (act->frame_count > 0 ? act->frame_count - 1 : 0);
+      unsigned char* buf = malloc(buf_size);
+      memset(buf, 0, buf_size);
 
-    // Base positions (frame 0)
-    memcpy(buf, snapshots, pos_bytes);
+      // Base positions (frame 0)
+      memcpy(buf, snapshots, pos_bytes);
 
-    // UVs
-    memcpy(buf + pos_bytes, uvs, uv_bytes);
+      // UVs
+      memcpy(buf + pos_bytes, uvs, uv_bytes);
 
-    // Indices
-    memcpy(buf + pos_bytes + uv_bytes, indices, idx_bytes_raw);
+      // Indices
+      memcpy(buf + pos_bytes + uv_bytes, indices, idx_bytes_raw);
 
-    // Morph target deltas: frame i delta = frame_i_positions - frame_0_positions
-    for (unsigned int f = 1; f < act->frame_count; f++)
-    {
-      float* base = snapshots;
-      float* cur  = snapshots + f * total_verts * 3;
-      float delta[3];
+      // Morph target deltas: frame i delta = frame_i_positions - frame_0_positions
+      for (unsigned int f = 1; f < act->frame_count; f++)
+      {
+        float* base = snapshots;
+        float* cur  = snapshots + f * total_verts * 3;
+        float delta[3];
+        for (unsigned int v = 0; v < total_verts; v++)
+        {
+          delta[0] = cur[v * 3 + 0] - base[v * 3 + 0];
+          delta[1] = cur[v * 3 + 1] - base[v * 3 + 1];
+          delta[2] = cur[v * 3 + 2] - base[v * 3 + 2];
+          memcpy(buf + pos_bytes + uv_bytes + idx_bytes + (f - 1) * morph_bytes + v * 12, delta, 12);
+        }
+      }
+
+      // Compute bounding box of base mesh for accessor min/max.
+      float bb_min[3] = { 1e30f,  1e30f,  1e30f};
+      float bb_max[3] = {-1e30f, -1e30f, -1e30f};
       for (unsigned int v = 0; v < total_verts; v++)
-      {
-        delta[0] = cur[v * 3 + 0] - base[v * 3 + 0];
-        delta[1] = cur[v * 3 + 1] - base[v * 3 + 1];
-        delta[2] = cur[v * 3 + 2] - base[v * 3 + 2];
-        memcpy(buf + pos_bytes + uv_bytes + idx_bytes + (f - 1) * morph_bytes + v * 12, delta, 12);
-      }
-    }
+        for (int c = 0; c < 3; c++)
+        {
+          if (snapshots[v * 3 + c] < bb_min[c]) bb_min[c] = snapshots[v * 3 + c];
+          if (snapshots[v * 3 + c] > bb_max[c]) bb_max[c] = snapshots[v * 3 + c];
+        }
 
-    // Compute bounding box of base mesh for accessor min/max.
-    float bb_min[3] = { 1e30f,  1e30f,  1e30f};
-    float bb_max[3] = {-1e30f, -1e30f, -1e30f};
-    for (unsigned int v = 0; v < total_verts; v++)
-      for (int c = 0; c < 3; c++)
-      {
-        if (snapshots[v * 3 + c] < bb_min[c]) bb_min[c] = snapshots[v * 3 + c];
-        if (snapshots[v * 3 + c] > bb_max[c]) bb_max[c] = snapshots[v * 3 + c];
-      }
+      // Write binary buffer file.
+      char gltf_path[256], bin_path[256], bin_name[256];
+      sprintf(gltf_path, "%s/%s.gltf", filename, filename);
+      sprintf(bin_path,  "%s/%s.bin",  filename, filename);
+      sprintf(bin_name,  "%s.bin",     filename);
 
-    // Write binary buffer file.
-    char gltf_path[256], bin_path[256], bin_name[256];
-    sprintf(gltf_path, "%s/%s.gltf", filename, filename);
-    sprintf(bin_path,  "%s/%s.bin",  filename, filename);
-    sprintf(bin_name,  "%s.bin",     filename);
-
-    FILE* bf = fopen(bin_path, "wb");
-    fwrite(buf, 1, buf_size, bf);
-    fclose(bf);
-
-    // Write glTF JSON.
-    FILE* gf = fopen(gltf_path, "w");
-
-    fprintf(gf, "{\n");
-    fprintf(gf, "  \"asset\": {\"version\": \"2.0\", \"generator\": \"gk3-extractor\"},\n");
-    fprintf(gf, "  \"scene\": 0,\n");
-    fprintf(gf, "  \"scenes\": [{\"nodes\": [0]}],\n");
-    fprintf(gf, "  \"nodes\": [{\"mesh\": 0, \"name\": \"%s\"}],\n", filename);
-
-    // Accessors:
-    //   0  = base positions  (VEC3, FLOAT)
-    //   1  = uvs             (VEC2, FLOAT)
-    //   2  = indices         (SCALAR, UNSIGNED_SHORT)
-    //   3+ = morph deltas    (VEC3, FLOAT), one per frame 1..N
-
-    unsigned int n_morphs = act->frame_count > 0 ? act->frame_count - 1 : 0;
-
-    fprintf(gf, "  \"meshes\": [{\n");
-    fprintf(gf, "    \"name\": \"%s\",\n", filename);
-    fprintf(gf, "    \"primitives\": [{\n");
-    fprintf(gf, "      \"attributes\": {\"POSITION\": 0, \"TEXCOORD_0\": 1},\n");
-    fprintf(gf, "      \"indices\": 2,\n");
-    if (n_morphs > 0)
-    {
-      fprintf(gf, "      \"targets\": [\n");
-      for (unsigned int f = 0; f < n_morphs; f++)
-      {
-        fprintf(gf, "        {\"POSITION\": %u}%s\n", 3 + f, f < n_morphs - 1 ? "," : "");
-      }
-      fprintf(gf, "      ],\n");
-    }
-    fprintf(gf, "      \"mode\": 4\n");
-    fprintf(gf, "    }]\n");
-    fprintf(gf, "  }],\n");
-
-    fprintf(gf, "  \"accessors\": [\n");
-
-    // accessor 0: base positions
-    fprintf(gf, "    {\"bufferView\": 0, \"byteOffset\": 0, \"componentType\": 5126, \"count\": %u, \"type\": \"VEC3\",\n", total_verts);
-    fprintf(gf, "     \"min\": [%f, %f, %f], \"max\": [%f, %f, %f]},\n",
-      bb_min[0], bb_min[1], bb_min[2], bb_max[0], bb_max[1], bb_max[2]);
-
-    // accessor 1: uvs
-    fprintf(gf, "    {\"bufferView\": 1, \"byteOffset\": 0, \"componentType\": 5126, \"count\": %u, \"type\": \"VEC2\"},\n", total_verts);
-
-    // accessor 2: indices
-    fprintf(gf, "    {\"bufferView\": 2, \"byteOffset\": 0, \"componentType\": 5123, \"count\": %u, \"type\": \"SCALAR\"}%s\n",
-      total_tris * 3, n_morphs > 0 ? "," : "");
-
-    // accessors 3..3+n_morphs-1: morph target deltas
-    for (unsigned int f = 0; f < n_morphs; f++)
-    {
-      fprintf(gf, "    {\"bufferView\": %u, \"byteOffset\": 0, \"componentType\": 5126, \"count\": %u, \"type\": \"VEC3\"}%s\n",
-        3 + f, total_verts, f < n_morphs - 1 ? "," : "");
-    }
-
-    fprintf(gf, "  ],\n");
-
-    // Buffer views:
-    //   0 = base positions
-    //   1 = uvs
-    //   2 = indices
-    //   3+ = morph deltas
-
-    fprintf(gf, "  \"bufferViews\": [\n");
-    fprintf(gf, "    {\"buffer\": 0, \"byteOffset\": 0, \"byteLength\": %u, \"byteStride\": 12, \"target\": 34962},\n", pos_bytes);
-    fprintf(gf, "    {\"buffer\": 0, \"byteOffset\": %u, \"byteLength\": %u, \"byteStride\": 8, \"target\": 34962},\n", pos_bytes, uv_bytes);
-    fprintf(gf, "    {\"buffer\": 0, \"byteOffset\": %u, \"byteLength\": %u, \"target\": 34963}%s\n",
-      pos_bytes + uv_bytes, idx_bytes_raw, n_morphs > 0 ? "," : "");
-
-    for (unsigned int f = 0; f < n_morphs; f++)
-    {
-      unsigned int bv_off = pos_bytes + uv_bytes + idx_bytes + f * morph_bytes;
-      fprintf(gf, "    {\"buffer\": 0, \"byteOffset\": %u, \"byteLength\": %u, \"byteStride\": 12, \"target\": 34962}%s\n",
-        bv_off, morph_bytes, f < n_morphs - 1 ? "," : "");
-    }
-
-    fprintf(gf, "  ],\n");
-    fprintf(gf, "  \"buffers\": [{\"uri\": \"%s\", \"byteLength\": %u}]", bin_name, buf_size);
-
-    // Animation: one channel stepping through morph weights at 24 fps.
-    if (n_morphs > 0)
-    {
-      // We need two more accessors and two more buffer views for the animation sampler
-      // (time input + weight output), appended to the binary buffer.
-
-      unsigned int n_keys = act->frame_count; // one keyframe per frame including frame 0
-      float fps = 24.0f;
-
-      unsigned int time_bytes   = n_keys * sizeof(float);
-      unsigned int weight_bytes = n_keys * n_morphs * sizeof(float); // all morph weights per key
-
-      // Extend buffer
-      unsigned int anim_offset = buf_size;
-      buf_size += time_bytes + weight_bytes;
-      buf = realloc(buf, buf_size);
-
-      float* times   = (float*)(void*)(buf + anim_offset);
-      float* weights = (float*)(void*)(buf + anim_offset + time_bytes);
-
-      for (unsigned int k = 0; k < n_keys; k++)
-        times[k] = k / fps;
-
-      // At key k, morph weight[k] for target t: 1 if t == k-1, else 0
-      // (frame 0 = base pose, no morph active; frame k = morph target k-1 fully active)
-      memset(weights, 0, weight_bytes);
-      for (unsigned int k = 1; k < n_keys; k++)
-        weights[k * n_morphs + (k - 1)] = 1.0f;
-
-      // Rewrite bin with extended buffer
-      bf = fopen(bin_path, "wb");
+      FILE* bf = fopen(bin_path, "wb");
       fwrite(buf, 1, buf_size, bf);
       fclose(bf);
 
-      unsigned int acc_time_idx   = 3 + n_morphs;
-      unsigned int acc_weight_idx = 4 + n_morphs;
-      unsigned int bv_time_idx    = 3 + n_morphs;
-      unsigned int bv_weight_idx  = 4 + n_morphs;
-
-      // Patch the JSON: add animation, and fix buffers byteLength
-      // We wrote buffers already so rewrite the whole file instead.
-      fclose(gf);
-      gf = fopen(gltf_path, "w");
+      // Write glTF JSON.
+      FILE* gf = fopen(gltf_path, "w");
 
       fprintf(gf, "{\n");
       fprintf(gf, "  \"asset\": {\"version\": \"2.0\", \"generator\": \"gk3-extractor\"},\n");
       fprintf(gf, "  \"scene\": 0,\n");
       fprintf(gf, "  \"scenes\": [{\"nodes\": [0]}],\n");
-      fprintf(gf, "  \"nodes\": [{\"mesh\": 0, \"name\": \"%s\", \"weights\": [", filename);
-      for (unsigned int t = 0; t < n_morphs; t++)
-        fprintf(gf, "0%s", t < n_morphs - 1 ? "," : "");
-      fprintf(gf, "]}],\n");
+      fprintf(gf, "  \"nodes\": [{\"mesh\": 0, \"name\": \"%s\"}],\n", filename);
+
+      // Accessors:
+      //   0  = base positions  (VEC3, FLOAT)
+      //   1  = uvs             (VEC2, FLOAT)
+      //   2  = indices         (SCALAR, UNSIGNED_SHORT)
+      //   3+ = morph deltas    (VEC3, FLOAT), one per frame 1..N
+
+      unsigned int n_morphs = act->frame_count > 0 ? act->frame_count - 1 : 0;
 
       fprintf(gf, "  \"meshes\": [{\n");
       fprintf(gf, "    \"name\": \"%s\",\n", filename);
       fprintf(gf, "    \"primitives\": [{\n");
       fprintf(gf, "      \"attributes\": {\"POSITION\": 0, \"TEXCOORD_0\": 1},\n");
       fprintf(gf, "      \"indices\": 2,\n");
-      fprintf(gf, "      \"targets\": [\n");
-      for (unsigned int f = 0; f < n_morphs; f++)
-        fprintf(gf, "        {\"POSITION\": %u}%s\n", 3 + f, f < n_morphs - 1 ? "," : "");
-      fprintf(gf, "      ],\n");
+      if (n_morphs > 0)
+      {
+        fprintf(gf, "      \"targets\": [\n");
+        for (unsigned int f = 0; f < n_morphs; f++)
+        {
+          fprintf(gf, "        {\"POSITION\": %u}%s\n", 3 + f, f < n_morphs - 1 ? "," : "");
+        }
+        fprintf(gf, "      ],\n");
+      }
       fprintf(gf, "      \"mode\": 4\n");
       fprintf(gf, "    }]\n");
       fprintf(gf, "  }],\n");
 
       fprintf(gf, "  \"accessors\": [\n");
+
+      // accessor 0: base positions
       fprintf(gf, "    {\"bufferView\": 0, \"byteOffset\": 0, \"componentType\": 5126, \"count\": %u, \"type\": \"VEC3\",\n", total_verts);
       fprintf(gf, "     \"min\": [%f, %f, %f], \"max\": [%f, %f, %f]},\n",
         bb_min[0], bb_min[1], bb_min[2], bb_max[0], bb_max[1], bb_max[2]);
+
+      // accessor 1: uvs
       fprintf(gf, "    {\"bufferView\": 1, \"byteOffset\": 0, \"componentType\": 5126, \"count\": %u, \"type\": \"VEC2\"},\n", total_verts);
-      fprintf(gf, "    {\"bufferView\": 2, \"byteOffset\": 0, \"componentType\": 5123, \"count\": %u, \"type\": \"SCALAR\"},\n", total_tris * 3);
+
+      // accessor 2: indices
+      fprintf(gf, "    {\"bufferView\": 2, \"byteOffset\": 0, \"componentType\": 5123, \"count\": %u, \"type\": \"SCALAR\"}%s\n",
+        total_tris * 3, n_morphs > 0 ? "," : "");
+
+      // accessors 3..3+n_morphs-1: morph target deltas
       for (unsigned int f = 0; f < n_morphs; f++)
-        fprintf(gf, "    {\"bufferView\": %u, \"byteOffset\": 0, \"componentType\": 5126, \"count\": %u, \"type\": \"VEC3\"},\n", 3 + f, total_verts);
-      // time accessor
-      fprintf(gf, "    {\"bufferView\": %u, \"byteOffset\": 0, \"componentType\": 5126, \"count\": %u, \"type\": \"SCALAR\",\n", bv_time_idx, n_keys);
-      fprintf(gf, "     \"min\": [0.0], \"max\": [%f]},\n", (n_keys - 1) / fps);
-      // weight accessor
-      fprintf(gf, "    {\"bufferView\": %u, \"byteOffset\": 0, \"componentType\": 5126, \"count\": %u, \"type\": \"SCALAR\"}\n", bv_weight_idx, n_keys * n_morphs);
+      {
+        fprintf(gf, "    {\"bufferView\": %u, \"byteOffset\": 0, \"componentType\": 5126, \"count\": %u, \"type\": \"VEC3\"}%s\n",
+          3 + f, total_verts, f < n_morphs - 1 ? "," : "");
+      }
+
       fprintf(gf, "  ],\n");
+
+      // Buffer views:
+      //   0 = base positions
+      //   1 = uvs
+      //   2 = indices
+      //   3+ = morph deltas
 
       fprintf(gf, "  \"bufferViews\": [\n");
       fprintf(gf, "    {\"buffer\": 0, \"byteOffset\": 0, \"byteLength\": %u, \"byteStride\": 12, \"target\": 34962},\n", pos_bytes);
       fprintf(gf, "    {\"buffer\": 0, \"byteOffset\": %u, \"byteLength\": %u, \"byteStride\": 8, \"target\": 34962},\n", pos_bytes, uv_bytes);
-      fprintf(gf, "    {\"buffer\": 0, \"byteOffset\": %u, \"byteLength\": %u, \"target\": 34963},\n", pos_bytes + uv_bytes, idx_bytes_raw);
+      fprintf(gf, "    {\"buffer\": 0, \"byteOffset\": %u, \"byteLength\": %u, \"target\": 34963}%s\n",
+        pos_bytes + uv_bytes, idx_bytes_raw, n_morphs > 0 ? "," : "");
+
       for (unsigned int f = 0; f < n_morphs; f++)
       {
         unsigned int bv_off = pos_bytes + uv_bytes + idx_bytes + f * morph_bytes;
-        fprintf(gf, "    {\"buffer\": 0, \"byteOffset\": %u, \"byteLength\": %u, \"byteStride\": 12, \"target\": 34962},\n", bv_off, morph_bytes);
+        fprintf(gf, "    {\"buffer\": 0, \"byteOffset\": %u, \"byteLength\": %u, \"byteStride\": 12, \"target\": 34962}%s\n",
+          bv_off, morph_bytes, f < n_morphs - 1 ? "," : "");
       }
-      fprintf(gf, "    {\"buffer\": 0, \"byteOffset\": %u, \"byteLength\": %u},\n", anim_offset, time_bytes);
-      fprintf(gf, "    {\"buffer\": 0, \"byteOffset\": %u, \"byteLength\": %u}\n", anim_offset + time_bytes, weight_bytes);
+
       fprintf(gf, "  ],\n");
+      fprintf(gf, "  \"buffers\": [{\"uri\": \"%s\", \"byteLength\": %u}]", bin_name, buf_size);
 
-      fprintf(gf, "  \"animations\": [{\n");
-      fprintf(gf, "    \"name\": \"%s\",\n", filename);
-      fprintf(gf, "    \"samplers\": [{\"input\": %u, \"interpolation\": \"STEP\", \"output\": %u}],\n", acc_time_idx, acc_weight_idx);
-      fprintf(gf, "    \"channels\": [{\"sampler\": 0, \"target\": {\"node\": 0, \"path\": \"weights\"}}]\n");
-      fprintf(gf, "  }],\n");
+      // Animation: one channel stepping through morph weights at 24 fps.
+      if (n_morphs > 0)
+      {
+        // We need two more accessors and two more buffer views for the animation sampler
+        // (time input + weight output), appended to the binary buffer.
 
-      fprintf(gf, "  \"buffers\": [{\"uri\": \"%s\", \"byteLength\": %u}]\n", bin_name, buf_size);
-      fprintf(gf, "}\n");
-    }
-    else
-    {
-      fprintf(gf, "\n}\n");
-    }
+        unsigned int n_keys = act->frame_count; // one keyframe per frame including frame 0
+        float fps = 24.0f;
 
-    fclose(gf);
-    free(buf);
-    free(snapshots);
-    free(uvs);
-    free(indices);
-    mod_close(gmod);
-    // --- end glTF export ---
+        unsigned int time_bytes   = n_keys * sizeof(float);
+        unsigned int weight_bytes = n_keys * n_morphs * sizeof(float); // all morph weights per key
+
+        // Extend buffer
+        unsigned int anim_offset = buf_size;
+        buf_size += time_bytes + weight_bytes;
+        buf = realloc(buf, buf_size);
+
+        float* times   = (float*)(void*)(buf + anim_offset);
+        float* weights = (float*)(void*)(buf + anim_offset + time_bytes);
+
+        for (unsigned int k = 0; k < n_keys; k++)
+          times[k] = k / fps;
+
+        // At key k, morph weight[k] for target t: 1 if t == k-1, else 0
+        // (frame 0 = base pose, no morph active; frame k = morph target k-1 fully active)
+        memset(weights, 0, weight_bytes);
+        for (unsigned int k = 1; k < n_keys; k++)
+          weights[k * n_morphs + (k - 1)] = 1.0f;
+
+        // Rewrite bin with extended buffer
+        bf = fopen(bin_path, "wb");
+        fwrite(buf, 1, buf_size, bf);
+        fclose(bf);
+
+        unsigned int acc_time_idx   = 3 + n_morphs;
+        unsigned int acc_weight_idx = 4 + n_morphs;
+        unsigned int bv_time_idx    = 3 + n_morphs;
+        unsigned int bv_weight_idx  = 4 + n_morphs;
+
+        // Patch the JSON: add animation, and fix buffers byteLength
+        // We wrote buffers already so rewrite the whole file instead.
+        fclose(gf);
+        gf = fopen(gltf_path, "w");
+
+        fprintf(gf, "{\n");
+        fprintf(gf, "  \"asset\": {\"version\": \"2.0\", \"generator\": \"gk3-extractor\"},\n");
+        fprintf(gf, "  \"scene\": 0,\n");
+        fprintf(gf, "  \"scenes\": [{\"nodes\": [0]}],\n");
+        fprintf(gf, "  \"nodes\": [{\"mesh\": 0, \"name\": \"%s\", \"weights\": [", filename);
+        for (unsigned int t = 0; t < n_morphs; t++)
+          fprintf(gf, "0%s", t < n_morphs - 1 ? "," : "");
+        fprintf(gf, "]}],\n");
+
+        fprintf(gf, "  \"meshes\": [{\n");
+        fprintf(gf, "    \"name\": \"%s\",\n", filename);
+        fprintf(gf, "    \"primitives\": [{\n");
+        fprintf(gf, "      \"attributes\": {\"POSITION\": 0, \"TEXCOORD_0\": 1},\n");
+        fprintf(gf, "      \"indices\": 2,\n");
+        fprintf(gf, "      \"targets\": [\n");
+        for (unsigned int f = 0; f < n_morphs; f++)
+          fprintf(gf, "        {\"POSITION\": %u}%s\n", 3 + f, f < n_morphs - 1 ? "," : "");
+        fprintf(gf, "      ],\n");
+        fprintf(gf, "      \"mode\": 4\n");
+        fprintf(gf, "    }]\n");
+        fprintf(gf, "  }],\n");
+
+        fprintf(gf, "  \"accessors\": [\n");
+        fprintf(gf, "    {\"bufferView\": 0, \"byteOffset\": 0, \"componentType\": 5126, \"count\": %u, \"type\": \"VEC3\",\n", total_verts);
+        fprintf(gf, "     \"min\": [%f, %f, %f], \"max\": [%f, %f, %f]},\n",
+          bb_min[0], bb_min[1], bb_min[2], bb_max[0], bb_max[1], bb_max[2]);
+        fprintf(gf, "    {\"bufferView\": 1, \"byteOffset\": 0, \"componentType\": 5126, \"count\": %u, \"type\": \"VEC2\"},\n", total_verts);
+        fprintf(gf, "    {\"bufferView\": 2, \"byteOffset\": 0, \"componentType\": 5123, \"count\": %u, \"type\": \"SCALAR\"},\n", total_tris * 3);
+        for (unsigned int f = 0; f < n_morphs; f++)
+          fprintf(gf, "    {\"bufferView\": %u, \"byteOffset\": 0, \"componentType\": 5126, \"count\": %u, \"type\": \"VEC3\"},\n", 3 + f, total_verts);
+        // time accessor
+        fprintf(gf, "    {\"bufferView\": %u, \"byteOffset\": 0, \"componentType\": 5126, \"count\": %u, \"type\": \"SCALAR\",\n", bv_time_idx, n_keys);
+        fprintf(gf, "     \"min\": [0.0], \"max\": [%f]},\n", (n_keys - 1) / fps);
+        // weight accessor
+        fprintf(gf, "    {\"bufferView\": %u, \"byteOffset\": 0, \"componentType\": 5126, \"count\": %u, \"type\": \"SCALAR\"}\n", bv_weight_idx, n_keys * n_morphs);
+        fprintf(gf, "  ],\n");
+
+        fprintf(gf, "  \"bufferViews\": [\n");
+        fprintf(gf, "    {\"buffer\": 0, \"byteOffset\": 0, \"byteLength\": %u, \"byteStride\": 12, \"target\": 34962},\n", pos_bytes);
+        fprintf(gf, "    {\"buffer\": 0, \"byteOffset\": %u, \"byteLength\": %u, \"byteStride\": 8, \"target\": 34962},\n", pos_bytes, uv_bytes);
+        fprintf(gf, "    {\"buffer\": 0, \"byteOffset\": %u, \"byteLength\": %u, \"target\": 34963},\n", pos_bytes + uv_bytes, idx_bytes_raw);
+        for (unsigned int f = 0; f < n_morphs; f++)
+        {
+          unsigned int bv_off = pos_bytes + uv_bytes + idx_bytes + f * morph_bytes;
+          fprintf(gf, "    {\"buffer\": 0, \"byteOffset\": %u, \"byteLength\": %u, \"byteStride\": 12, \"target\": 34962},\n", bv_off, morph_bytes);
+        }
+        fprintf(gf, "    {\"buffer\": 0, \"byteOffset\": %u, \"byteLength\": %u},\n", anim_offset, time_bytes);
+        fprintf(gf, "    {\"buffer\": 0, \"byteOffset\": %u, \"byteLength\": %u}\n", anim_offset + time_bytes, weight_bytes);
+        fprintf(gf, "  ],\n");
+
+        fprintf(gf, "  \"animations\": [{\n");
+        fprintf(gf, "    \"name\": \"%s\",\n", filename);
+        fprintf(gf, "    \"samplers\": [{\"input\": %u, \"interpolation\": \"STEP\", \"output\": %u}],\n", acc_time_idx, acc_weight_idx);
+        fprintf(gf, "    \"channels\": [{\"sampler\": 0, \"target\": {\"node\": 0, \"path\": \"weights\"}}]\n");
+        fprintf(gf, "  }],\n");
+
+        fprintf(gf, "  \"buffers\": [{\"uri\": \"%s\", \"byteLength\": %u}]\n", bin_name, buf_size);
+        fprintf(gf, "}\n");
+      }
+      else
+      {
+        fprintf(gf, "\n}\n");
+      }
+
+      fclose(gf);
+      free(buf);
+      free(snapshots);
+      free(uvs);
+      free(indices);
+      mod_close(gmod);
+    } // --- end glTF export ---
 
     // Extract Textures
     for (unsigned int i = 0; i < mod->mesh_count; i++)
